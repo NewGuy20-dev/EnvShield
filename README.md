@@ -12,12 +12,12 @@ EnvShield is a secure environment variable manager designed for teams. It provid
     ```bash
     cd envshield
     ```
-3.  Create a local environment file from the example:
+3.  Set up your local environment file:
     ```bash
-    cp .env.example .env.local
+    npm run setup:env
     ```
-4.  Fill in the required environment variables in `.env.local`.
-5.  Install the dependencies for the main application:
+    This will create a `.env.local` file and generate a new encryption key.
+4.  Install the dependencies for the main application:
     ```bash
     npm install
     ```
