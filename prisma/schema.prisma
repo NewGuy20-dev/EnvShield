@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime @updatedAt
+
+  projects      ProjectMember[]
+  apiTokens     ApiToken[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model ApiToken {
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  name        String?
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_tokens")
+  @@index([userId])
+  @@index([token])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members      ProjectMember[]
+  environments Environment[]
+  auditLogs    AuditLog[]
+
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  role      Role     @default(VIEWER)
+  createdAt DateTime @default(now())
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+  @@index([projectId])
+  @@index([userId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  DEVELOPER
+  VIEWER
+}
+
+model Environment {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  slug        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  variables   Variable[]
+
+  @@unique([projectId, slug])
+  @@map("environments")
+  @@index([projectId])
+}
+
+model Variable {
+  id            String      @id @default(cuid())
+  environmentId String
+  key           String
+  value         String      // encrypted JSON string
+  description   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  history       VariableHistory[]
+
+  @@unique([environmentId, key])
+  @@map("variables")
+  @@index([environmentId])
+}
+
+model VariableHistory {
+  id          String   @id @default(cuid())
+  variableId  String
+  key         String
+  value       String   // encrypted JSON string
+  changedBy   String   // user id
+  createdAt   DateTime @default(now())
+
+  variable    Variable @relation(fields: [variableId], references: [id], onDelete: Cascade)
+
+  @@map("variable_history")
+  @@index([variableId])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  projectId   String
+  userId      String
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+  @@index([projectId])
+  @@index([userId])
+  @@index([createdAt])
+}
