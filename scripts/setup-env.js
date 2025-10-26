@@ -53,4 +53,18 @@ try {
 } catch (error) {
   console.error('An unexpected error occurred:', error);
   process.exit(1);
+if (!fs.existsSync(envLocalPath)) {
+  fs.copyFileSync(envExamplePath, envLocalPath);
+  console.log('Created .env.local from .env.example');
+}
+
+let envContent = fs.readFileSync(envLocalPath, 'utf-8');
+
+if (envContent.includes('ENCRYPTION_KEY=""')) {
+  const newKey = crypto.randomBytes(32).toString('hex');
+  envContent = envContent.replace('ENCRYPTION_KEY=""', `ENCRYPTION_KEY="${newKey}"`);
+  fs.writeFileSync(envLocalPath, envContent);
+  console.log('Generated and set new ENCRYPTION_KEY in .env.local');
+} else {
+  console.log('ENCRYPTION_KEY already set in .env.local, skipping generation.');
 }
