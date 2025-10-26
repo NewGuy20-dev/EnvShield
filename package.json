@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup:env": "node scripts/setup-env.js"
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",
