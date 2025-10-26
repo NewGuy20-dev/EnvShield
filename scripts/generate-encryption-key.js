@@ -7,6 +7,3 @@ try {
   console.error('Failed to generate encryption key:', error);
   process.exit(1);
 }
-const crypto = require('crypto');
-
-console.log(crypto.randomBytes(32).toString('hex'));

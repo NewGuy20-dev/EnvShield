@@ -33,15 +33,6 @@ model ApiToken {
   createdAt  DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  id          String   @id @default(cuid())
-  userId      String
-  token       String   @unique
-  name        String?
-  lastUsedAt  DateTime?
-  expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("api_tokens")
   @@index([userId])
@@ -72,8 +63,6 @@ model ProjectMember {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
   @@map("project_members")
@@ -99,8 +88,6 @@ model Environment {
 
   project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   variables Variable[]
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  variables   Variable[]
 
   @@unique([projectId, slug])
   @@map("environments")
@@ -118,16 +105,6 @@ model Variable {
   history       VariableHistory[]
 
   environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
-  id            String      @id @default(cuid())
-  environmentId String
-  key           String
-  value         String      // encrypted JSON string
-  description   String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
-  history       VariableHistory[]
 
   @@unique([environmentId, key])
   @@map("variables")
@@ -144,11 +121,6 @@ model VariableHistory {
 
   variable Variable @relation(fields: [variableId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [changedById], references: [id], onDelete: Cascade)
-  value       String   // encrypted JSON string
-  changedBy   String   // user id
-  createdAt   DateTime @default(now())
-
-  variable    Variable @relation(fields: [variableId], references: [id], onDelete: Cascade)
 
   @@map("variable_history")
   @@index([variableId])
@@ -170,22 +142,6 @@ model AuditLog {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model AuditLog {
-  id          String   @id @default(cuid())
-  projectId   String
-  userId      String
-  action      String
-  entityType  String
-  entityId    String?
-  metadata    Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
-
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("audit_logs")
   @@index([projectId])
