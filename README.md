@@ -21,15 +21,15 @@ EnvShield is a secure environment variable manager designed for teams. It provid
     ```bash
     npm install
     ```
-6.  Run the database migrations:
+5.  Run the database migrations:
     ```bash
     npx prisma migrate dev --name init
     ```
-7.  Start the development server:
+6.  Start the development server:
     ```bash
     npm run dev
     ```
-8.  In a separate terminal, install the CLI dependencies and link the CLI for local usage:
+7.  In a separate terminal, install the CLI dependencies and link the CLI for local usage:
     ```bash
     cd cli
     npm install
