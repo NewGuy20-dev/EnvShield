@@ -52,23 +52,25 @@ export function Modal({
       <div
         className={clsx(
           "glass-card relative w-full animate-scale-in",
+          "border-2 border-glass-light-border dark:border-glass-dark-border",
+          "shadow-2xl shadow-black/20 dark:shadow-black/60",
           {
-            "max-w-sm": size === "sm",
-            "max-w-md": size === "md",
-            "max-w-2xl": size === "lg",
+            "max-w-md": size === "sm",
+            "max-w-xl": size === "md",
+            "max-w-5xl": size === "lg",
           }
         )}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between mb-4 pb-4 border-b border-glass-light-border dark:border-glass-dark-border">
-            <h2 className="text-xl font-semibold text-text-primary-light dark:text-text-primary-dark">
+          <div className="flex items-center justify-between mb-6 pb-5 border-b-2 border-glass-light-border dark:border-glass-dark-border">
+            <h2 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark tracking-tight">
               {title}
             </h2>
             <button
               onClick={onClose}
-              className="p-1 rounded-lg text-text-muted-light dark:text-text-muted-dark hover:text-text-primary-light dark:hover:text-text-primary-dark hover:bg-glass-light dark:hover:bg-glass-dark transition-colors"
+              className="p-2 rounded-xl text-text-muted-light dark:text-text-muted-dark hover:text-text-primary-light dark:hover:text-text-primary-dark hover:bg-glass-light dark:hover:bg-glass-dark transition-all duration-200 hover:scale-110"
             >
               <X className="w-5 h-5" />
             </button>

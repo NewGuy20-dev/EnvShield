@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { jwtVerify } from "jose";
+import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
 import { z } from "zod";
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const secret = new TextEncoder().encode(JWT_SECRET);
 
 const createEnvironmentSchema = z.object({
   name: z.string().min(1),
@@ -12,21 +9,11 @@ const createEnvironmentSchema = z.object({
   projectId: z.string(),
 });
 
-async function getUserFromRequest(req: NextRequest) {
-  const token = req.cookies.get("auth-token")?.value;
-  if (!token) return null;
-  try {
-    const verified = await jwtVerify(token, secret);
-    return verified.payload.id as string;
-  } catch {
-    return null;
-  }
-}
-
 export async function GET(req: NextRequest) {
   try {
-    const userId = await getUserFromRequest(req);
-    if (!userId) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    const auth = await getAuthenticatedUserFromRequest(req);
+    if (!auth) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    const userId = auth.user.id;
 
     const projectId = req.nextUrl.searchParams.get("projectId");
     if (!projectId) {
@@ -55,8 +42,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const userId = await getUserFromRequest(req);
-    if (!userId) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    const auth = await getAuthenticatedUserFromRequest(req);
+    if (!auth) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    const userId = auth.user.id;
 
     const body = await req.json();
     const data = createEnvironmentSchema.parse(body);

@@ -1,35 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { jwtVerify } from "jose";
-import { z } from "zod";
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const secret = new TextEncoder().encode(JWT_SECRET);
-
-async function getUserFromRequest(req: NextRequest) {
-  const token = req.cookies.get("auth-token")?.value;
-  if (!token) return null;
-  try {
-    const verified = await jwtVerify(token, secret);
-    return verified.payload.id as string;
-  } catch {
-    return null;
-  }
-}
+import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { slug: string } }
+  context: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const userId = await getUserFromRequest(req);
-    if (!userId) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    const auth = await getAuthenticatedUserFromRequest(req);
+    if (!auth) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
+    const params = await context.params;
     const environments = await prisma.environment.findMany({
       where: {
         project: {
           slug: params.slug,
-          members: { some: { userId } },
+          members: { some: { userId: auth.user.id } },
         },
       },
       include: { variables: true },

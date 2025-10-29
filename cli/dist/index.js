@@ -11,6 +11,7 @@ const list_1 = require("./commands/list");
 const init_1 = require("./commands/init");
 const pull_1 = require("./commands/pull");
 const push_1 = require("./commands/push");
+const view_1 = require("./commands/view");
 const packageJson = JSON.parse((0, fs_1.readFileSync)((0, path_1.join)(__dirname, '../package.json'), 'utf-8'));
 const program = new commander_1.Command();
 program
@@ -47,15 +48,23 @@ program
     .command('pull')
     .description('Pull environment variables from remote')
     .option('--env <project/environment>', 'Specify project and environment (e.g., my-app/production)')
-    .option('--output <file>', 'Output file path (default: .env)')
+    .option('--output <file>', 'Output file path (default: .env.local or .env)')
     .action(pull_1.pullCommand);
 // Push command
 program
     .command('push')
     .description('Push environment variables to remote')
     .option('--env <project/environment>', 'Specify project and environment (e.g., my-app/production)')
-    .option('--file <file>', 'Source file path (default: .env)')
+    .option('--file <file>', 'Source file path (default: .env.local or .env)')
     .action(push_1.pushCommand);
+// View command
+program
+    .command('view')
+    .description('View environment variables in the terminal')
+    .option('--env <project/environment>', 'Specify project and environment (e.g., my-app/production)')
+    .option('--reveal', 'Show full values instead of masked')
+    .option('--filter <text>', 'Filter variables by key or description')
+    .action(view_1.viewCommand);
 // Display help if no command is provided
 if (!process.argv.slice(2).length) {
     program.outputHelp();

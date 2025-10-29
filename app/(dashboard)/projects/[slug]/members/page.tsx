@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { Plus, Mail, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,14 +16,15 @@ interface Member {
   createdAt: string;
 }
 
-export default function ProjectMembersPage({ params }: { params: { slug: string } }) {
+export default function ProjectMembersPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchMembers = async () => {
       try {
-        const response = await fetch(`/api/v1/projects/${params.slug}/members`);
+        const response = await fetch(`/api/v1/projects/${slug}/members`);
         if (response.ok) {
           const data = await response.json();
           setMembers(data.members || []);
@@ -36,7 +37,7 @@ export default function ProjectMembersPage({ params }: { params: { slug: string 
     };
 
     fetchMembers();
-  }, [params.slug]);
+  }, [slug]);
 
   const getRoleBadgeColor = (role: Member["role"]) => {
     switch (role) {

@@ -9,6 +9,7 @@ import { listCommand } from './commands/list';
 import { initCommand } from './commands/init';
 import { pullCommand } from './commands/pull';
 import { pushCommand } from './commands/push';
+import { viewCommand } from './commands/view';
 
 const packageJson = JSON.parse(
   readFileSync(join(__dirname, '../package.json'), 'utf-8')
@@ -56,7 +57,7 @@ program
   .command('pull')
   .description('Pull environment variables from remote')
   .option('--env <project/environment>', 'Specify project and environment (e.g., my-app/production)')
-  .option('--output <file>', 'Output file path (default: .env)')
+  .option('--output <file>', 'Output file path (default: .env.local or .env)')
   .action(pullCommand);
 
 // Push command
@@ -64,8 +65,17 @@ program
   .command('push')
   .description('Push environment variables to remote')
   .option('--env <project/environment>', 'Specify project and environment (e.g., my-app/production)')
-  .option('--file <file>', 'Source file path (default: .env)')
+  .option('--file <file>', 'Source file path (default: .env.local or .env)')
   .action(pushCommand);
+
+// View command
+program
+  .command('view')
+  .description('View environment variables in the terminal')
+  .option('--env <project/environment>', 'Specify project and environment (e.g., my-app/production)')
+  .option('--reveal', 'Show full values instead of masked')
+  .option('--filter <text>', 'Filter variables by key or description')
+  .action(viewCommand);
 
 // Display help if no command is provided
 if (!process.argv.slice(2).length) {

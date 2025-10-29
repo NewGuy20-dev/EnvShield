@@ -39,7 +39,21 @@ async function pushCommand(options) {
             projectSlug = parts[0];
             environment = parts[1];
         }
-        const sourceFile = options.file || '.env';
+        // Determine source file: prioritize .env.local, then .env
+        let sourceFile = options.file;
+        if (!sourceFile) {
+            if (fs_1.default.existsSync('.env.local')) {
+                sourceFile = '.env.local';
+            }
+            else if (fs_1.default.existsSync('.env')) {
+                sourceFile = '.env';
+            }
+            else {
+                (0, spinner_1.error)('No .env or .env.local file found');
+                console.log('Create a .env or .env.local file with your environment variables');
+                process.exit(1);
+            }
+        }
         // Check if source file exists
         if (!fs_1.default.existsSync(sourceFile)) {
             (0, spinner_1.error)(`File not found: ${sourceFile}`);
