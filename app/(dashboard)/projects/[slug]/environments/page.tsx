@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Lock, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,14 +17,15 @@ interface Environment {
   variablesCount: number;
 }
 
-export default function EnvironmentsPage({ params }: { params: { slug: string } }) {
+export default function EnvironmentsPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchEnvironments = async () => {
       try {
-        const response = await fetch(`/api/v1/projects/${params.slug}/environments`);
+        const response = await fetch(`/api/v1/projects/${slug}/environments`);
         if (response.ok) {
           const data = await response.json();
           setEnvironments(data.environments || []);
@@ -37,7 +38,7 @@ export default function EnvironmentsPage({ params }: { params: { slug: string } 
     };
 
     fetchEnvironments();
-  }, [params.slug]);
+  }, [slug]);
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
@@ -78,7 +79,7 @@ export default function EnvironmentsPage({ params }: { params: { slug: string } 
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {environments.map((env) => (
-            <Link key={env.id} href={`/projects/${params.slug}/environments/${env.slug}`}>
+            <Link key={env.id} href={`/projects/${slug}/environments/${env.slug}`}>
               <Card variant="interactive" className="p-6 h-full">
                 <div className="mb-4 flex items-start justify-between">
                   <div>

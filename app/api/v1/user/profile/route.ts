@@ -1,21 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { jwtVerify } from 'jose';
+import { getAuthenticatedUserFromRequest } from '@/lib/authMiddleware';
 import prisma from '@/lib/db';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const secret = new TextEncoder().encode(JWT_SECRET);
-
-async function getUserFromRequest(req: NextRequest) {
-  const token = req.cookies.get('auth-token')?.value;
-  if (!token) return null;
-  try {
-    const verified = await jwtVerify(token, secret);
-    return verified.payload.id as string;
-  } catch {
-    return null;
-  }
-}
 
 const updateProfileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
@@ -24,10 +10,11 @@ const updateProfileSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const userId = await getUserFromRequest(req);
-    if (!userId) {
+    const auth = await getAuthenticatedUserFromRequest(req);
+    if (!auth) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
+    const userId = auth.user.id;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -53,10 +40,11 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const userId = await getUserFromRequest(req);
-    if (!userId) {
+    const auth = await getAuthenticatedUserFromRequest(req);
+    if (!auth) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
+    const userId = auth.user.id;
 
     const body = await req.json();
     const data = updateProfileSchema.parse(body);

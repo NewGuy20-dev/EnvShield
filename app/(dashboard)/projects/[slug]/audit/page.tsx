@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { Clock, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,14 +17,15 @@ interface AuditLog {
   ipAddress?: string;
 }
 
-export default function AuditLogsPage({ params }: { params: { slug: string } }) {
+export default function AuditLogsPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const response = await fetch(`/api/v1/projects/${params.slug}/audit`);
+        const response = await fetch(`/api/v1/projects/${slug}/audit`);
         if (response.ok) {
           const data = await response.json();
           setLogs(data.logs || []);
@@ -37,11 +38,11 @@ export default function AuditLogsPage({ params }: { params: { slug: string } }) 
     };
 
     fetchLogs();
-  }, [params.slug]);
+  }, [slug]);
 
   const handleExport = async () => {
     try {
-      const response = await fetch(`/api/v1/projects/${params.slug}/audit/export`);
+      const response = await fetch(`/api/v1/projects/${slug}/audit/export`);
       if (response.ok) {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);

@@ -1,29 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { createProjectSchema } from "@/lib/validation";
 import prisma from "@/lib/db";
-import { jwtVerify } from "jose";
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const secret = new TextEncoder().encode(JWT_SECRET);
-
-async function getUserFromRequest(req: NextRequest) {
-  const token = req.cookies.get("auth-token")?.value;
-  if (!token) return null;
-
-  try {
-    const verified = await jwtVerify(token, secret);
-    return verified.payload.id as string;
-  } catch {
-    return null;
-  }
-}
+import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
 
 export async function GET(req: NextRequest) {
   try {
-    const userId = await getUserFromRequest(req);
-    if (!userId) {
+    const auth = await getAuthenticatedUserFromRequest(req);
+    if (!auth) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
+    const userId = auth.user.id;
 
     const projects = await prisma.project.findMany({
       where: {
@@ -58,19 +45,27 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const userId = await getUserFromRequest(req);
-    if (!userId) {
+    const auth = await getAuthenticatedUserFromRequest(req);
+    if (!auth) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
+    const userId = auth.user.id;
 
     const body = await req.json();
     const data = createProjectSchema.parse(body);
 
-    // Generate slug
-    const slug = data.name
+    const baseSlug = data.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+      .replace(/^-|-$/g, "")
+      .slice(0, 60) || "project";
+
+    let slug = baseSlug;
+    let suffix = 1;
+
+    while (await prisma.project.findUnique({ where: { slug } })) {
+      slug = `${baseSlug}-${suffix++}`;
+    }
 
     const project = await prisma.project.create({
       data: {
@@ -83,22 +78,57 @@ export async function POST(req: NextRequest) {
             role: "OWNER",
           },
         },
+        environments: {
+          create: [
+            {
+              name: "Development",
+              slug: "development",
+              description: "Development environment for local testing",
+            },
+            {
+              name: "Staging",
+              slug: "staging",
+              description: "Staging environment for pre-production testing",
+            },
+            {
+              name: "Production",
+              slug: "production",
+              description: "Production environment for live deployments",
+            },
+          ],
+        },
+      },
+      include: {
+        environments: true,
       },
     });
 
     return NextResponse.json(
       {
-        message: "Project created",
+        message: "Project created with 3 default environments",
         project: {
           id: project.id,
           name: project.name,
           slug: project.slug,
           description: project.description,
+          environments: project.environments.map(env => ({
+            id: env.id,
+            name: env.name,
+            slug: env.slug,
+            description: env.description,
+          })),
         },
       },
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json(
+        { message: "A project with this name already exists. Try a different name." },
+        { status: 409 }
+      );
+    }
+
     console.error("Create project error:", error);
     return NextResponse.json(
       { message: "Internal server error" },

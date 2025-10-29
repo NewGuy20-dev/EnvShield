@@ -42,7 +42,16 @@ export async function pullCommand(options: { env?: string; output?: string }) {
       environment = parts[1];
     }
 
-    const outputFile = options.output || '.env';
+    // Determine output file: prioritize .env.local, then .env
+    let outputFile = options.output;
+    if (!outputFile) {
+      // If .env.local exists, use it; otherwise use .env
+      if (fs.existsSync('.env.local')) {
+        outputFile = '.env.local';
+      } else {
+        outputFile = '.env';
+      }
+    }
 
     // Check if output file exists
     if (fs.existsSync(outputFile)) {

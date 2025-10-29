@@ -1,31 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
+import { getAuthenticatedUserFromRequest } from '@/lib/authMiddleware';
 import prisma from '@/lib/db';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const secret = new TextEncoder().encode(JWT_SECRET);
-
-async function getUserFromRequest(req: NextRequest) {
-  const token = req.cookies.get('auth-token')?.value;
-  if (!token) return null;
-  try {
-    const verified = await jwtVerify(token, secret);
-    return verified.payload.id as string;
-  } catch {
-    return null;
-  }
-}
 
 export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ tokenId: string }> }
 ) {
   try {
-    const userId = await getUserFromRequest(req);
-    if (!userId) {
+    const auth = await getAuthenticatedUserFromRequest(req);
+    if (!auth) {
       console.log('[Token Delete] Unauthorized - no user ID');
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
+    const userId = auth.user.id;
 
     const params = await context.params;
     const tokenId = params.tokenId;

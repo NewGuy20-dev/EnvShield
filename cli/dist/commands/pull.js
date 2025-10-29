@@ -38,7 +38,17 @@ async function pullCommand(options) {
             projectSlug = parts[0];
             environment = parts[1];
         }
-        const outputFile = options.output || '.env';
+        // Determine output file: prioritize .env.local, then .env
+        let outputFile = options.output;
+        if (!outputFile) {
+            // If .env.local exists, use it; otherwise use .env
+            if (fs_1.default.existsSync('.env.local')) {
+                outputFile = '.env.local';
+            }
+            else {
+                outputFile = '.env';
+            }
+        }
         // Check if output file exists
         if (fs_1.default.existsSync(outputFile)) {
             (0, spinner_1.warning)(`${outputFile} already exists and will be overwritten`);

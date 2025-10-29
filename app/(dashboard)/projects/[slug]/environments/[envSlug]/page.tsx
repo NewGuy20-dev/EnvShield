@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Search, Download, Upload, Copy, Eye, EyeOff, Trash2, MoreVertical, Lock } from "lucide-react";
+import { use, useEffect, useState } from "react";
+import { Plus, Search, Download, Upload, Copy, Eye, EyeOff, Trash2, Lock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import { LoadingSpinner } from "@/components/shared/loading-spinner";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -16,14 +15,33 @@ interface Variable {
   value: string;
   description?: string;
   updatedAt: string;
+  error?: string;
+  masked?: boolean;
+}
+
+interface EnvironmentInfo {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+}
+
+interface ProjectInfo {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 export default function VariablesPage({
   params,
 }: {
-  params: { slug: string; envSlug: string };
+  params: Promise<{ slug: string; envSlug: string }>;
 }) {
+  const { slug, envSlug } = use(params);
   const [variables, setVariables] = useState<Variable[]>([]);
+  const [environment, setEnvironment] = useState<EnvironmentInfo | null>(null);
+  const [project, setProject] = useState<ProjectInfo | null>(null);
+  const [canViewDecrypted, setCanViewDecrypted] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
@@ -32,17 +50,21 @@ export default function VariablesPage({
 
   useEffect(() => {
     fetchVariables();
-  }, [params.slug, params.envSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, envSlug]);
 
   const fetchVariables = async () => {
     try {
       setLoading(true);
       const response = await fetch(
-        `/api/v1/projects/${params.slug}/environments/${params.envSlug}/variables`
+        `/api/v1/projects/${slug}/environments/${envSlug}/variables`
       );
       if (response.ok) {
         const data = await response.json();
         setVariables(data.variables || []);
+        setEnvironment(data.environment);
+        setProject(data.project);
+        setCanViewDecrypted(data.canViewDecrypted || false);
       }
     } catch (error) {
       console.error("Failed to fetch variables:", error);
@@ -52,6 +74,10 @@ export default function VariablesPage({
   };
 
   const toggleReveal = (id: string) => {
+    // Only allow reveal if user has permission
+    if (!canViewDecrypted) {
+      return;
+    }
     const newSet = new Set(revealedIds);
     if (newSet.has(id)) {
       newSet.delete(id);
@@ -64,7 +90,7 @@ export default function VariablesPage({
   const handleAddVariable = async () => {
     try {
       const response = await fetch(
-        `/api/v1/projects/${params.slug}/environments/${params.envSlug}/variables`,
+        `/api/v1/projects/${slug}/environments/${envSlug}/variables`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -93,12 +119,20 @@ export default function VariablesPage({
       {/* Header */}
       <div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-text-primary-light dark:text-text-primary-dark mb-2">
-            Environment Variables
-          </h1>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-4xl font-bold text-text-primary-light dark:text-text-primary-dark">
+              {environment?.name || 'Environment Variables'}
+            </h1>
+          </div>
           <p className="text-text-secondary-light dark:text-text-secondary-dark">
-            {variables.length} variables • Last sync: just now
+            {project?.name} • {variables.length} variables
           </p>
+          {!canViewDecrypted && variables.length > 0 && (
+            <div className="flex items-center gap-2 mt-2 text-sm text-warning">
+              <AlertCircle className="w-4 h-4" />
+              <span>Values are masked. Contact an admin for full access.</span>
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           <Button
@@ -193,26 +227,45 @@ export default function VariablesPage({
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <code className="font-mono text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                          {isRevealed ? variable.value : "••••••••"}
-                        </code>
+                        <div className="flex items-center gap-2">
+                          <code className="font-mono text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                            {variable.error ? (
+                              <span className="text-danger">Decryption failed</span>
+                            ) : variable.masked && !canViewDecrypted ? (
+                              variable.value
+                            ) : isRevealed ? (
+                              variable.value
+                            ) : (
+                              "••••••••"
+                            )}
+                          </code>
+                          {variable.masked && (
+                            <span className="text-xs text-text-muted-light dark:text-text-muted-dark">
+                              (masked)
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-text-secondary-light dark:text-text-secondary-dark text-sm">
                         {new Date(variable.updatedAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-right space-x-2 flex items-center justify-end">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          onClick={() => toggleReveal(variable.id)}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={<Copy className="w-4 h-4" />}
-                          onClick={() => navigator.clipboard.writeText(variable.value)}
-                        />
+                        {canViewDecrypted && !variable.error && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              icon={isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              onClick={() => toggleReveal(variable.id)}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              icon={<Copy className="w-4 h-4" />}
+                              onClick={() => navigator.clipboard.writeText(variable.value)}
+                            />
+                          </>
+                        )}
                         <Button
                           variant="danger"
                           size="sm"
