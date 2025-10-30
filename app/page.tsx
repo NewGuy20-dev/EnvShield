@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Shield, Lock, Users, GitBranch, Terminal, Zap, ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { AnimatedThemeToggler } from "@/registry/magicui/animated-theme-toggler";
 import { AnimatedBackground } from "@/components/shared/animated-background";
 
 export default function Home() {
@@ -31,7 +31,7 @@ export default function Home() {
                   Get Started
                 </Button>
               </Link>
-              <ThemeToggle />
+              <AnimatedThemeToggler />
             </div>
           </div>
         </div>

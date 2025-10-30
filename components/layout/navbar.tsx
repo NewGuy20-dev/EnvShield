@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Shield, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { AnimatedThemeToggler } from "@/registry/magicui/animated-theme-toggler";
 import { Avatar } from "@/components/ui/avatar";
 
 export interface NavbarProps {
@@ -50,7 +50,7 @@ export function Navbar({ user, onLogout }: NavbarProps) {
 
           {/* Right Section */}
           <div className="flex items-center gap-3">
-            <ThemeToggle />
+            <AnimatedThemeToggler />
             
             {user && (
               <div className="flex items-center gap-3">

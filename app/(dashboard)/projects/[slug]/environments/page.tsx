@@ -95,7 +95,7 @@ export default function EnvironmentsPage({ params }: { params: Promise<{ slug: s
                   <Zap className="w-5 h-5 text-secondary" />
                 </div>
 
-                <Badge variant="secondary" size="sm" icon={<Lock className="w-3 h-3" />}>
+                <Badge variant="primary" size="sm" icon={<Lock className="w-3 h-3" />}>
                   {env.variablesCount} variables
                 </Badge>
               </Card>

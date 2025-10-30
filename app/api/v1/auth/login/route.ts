@@ -2,17 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
 import { compare } from "bcryptjs";
 import { loginSchema } from "@/lib/validation";
 import prisma from "@/lib/db";
-import { z } from "zod";
-import { jwtVerify, SignJWT } from "jose";
+import { SignJWT } from "jose";
+import { applyRateLimit, authLimiter, getClientIdentifier } from "@/lib/rateLimit";
+import { handleApiError, AuthError, ValidationError } from "@/lib/errors";
+import { logger, logSecurityEvent } from "@/lib/logger";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const secret = new TextEncoder().encode(JWT_SECRET);
 
 export async function POST(req: NextRequest) {
   try {
-    console.log("🔐 Login attempt received");
+    // Apply rate limiting (5 attempts per 15 minutes)
+    const identifier = getClientIdentifier(req);
+    const rateLimitResult = await applyRateLimit(identifier, authLimiter, 5, 15 * 60 * 1000);
+    
+    if (!rateLimitResult.success) {
+      logSecurityEvent('rate_limit_exceeded', 'medium', {
+        identifier,
+        endpoint: '/api/v1/auth/login',
+      });
+      
+      return new Response(
+        JSON.stringify({
+          error: 'Too many login attempts',
+          message: 'Please try again later',
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': '900', // 15 minutes
+          },
+        }
+      );
+    }
+
     const body = await req.json();
-    console.log("📧 Request body:", { email: body.email });
+    logger.info({ email: body.email }, 'Login attempt');
     const data = loginSchema.parse(body);
 
     // Find user (case-insensitive)
@@ -21,28 +47,27 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      console.log("❌ User not found:", data.email);
-      return NextResponse.json(
-        { message: "Invalid email or password" },
-        { status: 401 }
-      );
+      logSecurityEvent('failed_login', 'low', {
+        email: data.email,
+        reason: 'user_not_found',
+        ip: identifier,
+      });
+      throw new AuthError("Invalid email or password");
     }
-
-    console.log("✅ User found:", user.id);
 
     // Verify password
     const passwordMatch = await compare(data.password, user.passwordHash);
-    console.log("🔑 Password match:", passwordMatch);
     if (!passwordMatch) {
-      console.log("❌ Password mismatch");
-      return NextResponse.json(
-        { message: "Invalid email or password" },
-        { status: 401 }
-      );
+      logSecurityEvent('failed_login', 'low', {
+        email: data.email,
+        userId: user.id,
+        reason: 'invalid_password',
+        ip: identifier,
+      });
+      throw new AuthError("Invalid email or password");
     }
 
     // Create JWT token
-    console.log("🔐 JWT_SECRET loaded:", JWT_SECRET.substring(0, 20) + "...");
     const token = await new SignJWT({
       id: user.id,
       email: user.email,
@@ -51,7 +76,8 @@ export async function POST(req: NextRequest) {
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("30d")
       .sign(secret);
-    console.log("✅ Token created successfully");
+
+    logger.info({ userId: user.id, email: user.email }, 'Login successful');
 
     // Set HTTP-only cookie
     const response = NextResponse.json(
@@ -71,17 +97,6 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { message: error.errors[0].message },
-        { status: 400 }
-      );
-    }
-
-    console.error("Login error:", error);
-    return NextResponse.json(
-      { message: "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
