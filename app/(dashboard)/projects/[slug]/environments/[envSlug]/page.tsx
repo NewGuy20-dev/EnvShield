@@ -257,20 +257,20 @@ export default function VariablesPage({
                               size="sm"
                               icon={isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                               onClick={() => toggleReveal(variable.id)}
-                            />
+                            >{null}</Button>
                             <Button
                               variant="ghost"
                               size="sm"
                               icon={<Copy className="w-4 h-4" />}
                               onClick={() => navigator.clipboard.writeText(variable.value)}
-                            />
+                            >{null}</Button>
                           </>
                         )}
                         <Button
                           variant="danger"
                           size="sm"
                           icon={<Trash2 className="w-4 h-4" />}
-                        />
+                        >{null}</Button>
                       </td>
                     </tr>
                   );

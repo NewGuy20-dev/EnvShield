@@ -133,7 +133,7 @@ export default function ProjectsPage() {
                   <Badge variant="primary" size="sm">
                     {project.environmentsCount} environments
                   </Badge>
-                  <Badge variant="secondary" size="sm">
+                  <Badge variant="primary" size="sm">
                     {project.variablesCount} variables
                   </Badge>
                 </div>

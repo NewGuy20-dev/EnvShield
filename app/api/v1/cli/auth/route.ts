@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { compare, hash } from 'bcryptjs';
 import crypto from 'crypto';
 import prisma from '@/lib/db';
+import { applyRateLimit, cliLimiter, getClientIdentifier } from '@/lib/rateLimit';
+import { handleApiError, AuthError } from '@/lib/errors';
+import { logger, logSecurityEvent } from '@/lib/logger';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -12,6 +15,31 @@ const bodySchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // Apply CLI rate limiting (30 requests per minute)
+    const identifier = getClientIdentifier(req);
+    const rateLimitResult = await applyRateLimit(identifier, cliLimiter, 30, 60 * 1000);
+    
+    if (!rateLimitResult.success) {
+      logSecurityEvent('cli_rate_limit_exceeded', 'medium', {
+        identifier,
+        endpoint: '/api/v1/cli/auth',
+      });
+      
+      return new Response(
+        JSON.stringify({
+          error: 'Too many CLI authentication attempts',
+          message: 'Please try again in a minute',
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': '60',
+          },
+        }
+      );
+    }
+
     const data = await req.json();
     const parsed = bodySchema.parse(data);
 
@@ -21,19 +49,24 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json(
-        { message: 'Invalid credentials' },
-        { status: 401 }
-      );
+      logSecurityEvent('cli_auth_failed', 'low', {
+        email: parsed.email,
+        reason: 'user_not_found',
+        ip: identifier,
+      });
+      throw new AuthError('Invalid credentials');
     }
 
     // Verify password
     const isValidPassword = await compare(parsed.password, user.passwordHash);
     if (!isValidPassword) {
-      return NextResponse.json(
-        { message: 'Invalid credentials' },
-        { status: 401 }
-      );
+      logSecurityEvent('cli_auth_failed', 'low', {
+        email: parsed.email,
+        userId: user.id,
+        reason: 'invalid_password',
+        ip: identifier,
+      });
+      throw new AuthError('Invalid credentials');
     }
 
     // Generate API token with esh_ prefix
@@ -45,7 +78,7 @@ export async function POST(req: NextRequest) {
     expiresAt.setFullYear(expiresAt.getFullYear() + 1);
 
     // Create token in database
-    await prisma.apiToken.create({
+    const token = await prisma.apiToken.create({
       data: {
         userId: user.id,
         token: tokenHash,
@@ -54,23 +87,18 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    logger.info({ 
+      userId: user.id, 
+      tokenId: token.id,
+      tokenName: parsed.tokenName 
+    }, 'CLI token created');
+
     return NextResponse.json({
       token: tokenPlain,
       expiresAt: expiresAt.toISOString(),
       message: 'Authentication successful',
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { message: 'Invalid request data', errors: error.errors },
-        { status: 400 }
-      );
-    }
-
-    console.error('CLI auth error:', error);
-    return NextResponse.json(
-      { message: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
