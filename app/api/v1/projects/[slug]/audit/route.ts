@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
+import { canManageProject } from "@/lib/permissions";
+import { PermissionError } from "@/lib/errors";
+import { Role } from "@prisma/client";
 
 export async function GET(
   req: NextRequest,
@@ -13,10 +16,20 @@ export async function GET(
     const params = await context.params;
     const project = await prisma.project.findUnique({
       where: { slug: params.slug },
+      include: {
+        members: {
+          where: { userId: auth.user.id },
+        },
+      },
     });
 
-    if (!project) {
-      return NextResponse.json({ message: "Project not found" }, { status: 404 });
+    const member = project?.members[0];
+    if (!project || !member) {
+      throw new PermissionError("You are not a member of this project");
+    }
+
+    if (!canManageProject(member.role)) {
+      throw new PermissionError("You do not have permission to view audit logs");
     }
 
     const logs = await prisma.auditLog.findMany({
@@ -26,6 +39,7 @@ export async function GET(
       take: 50,
     });
 
+    const includeIp = member.role === Role.OWNER;
     const formatted = logs.map(log => ({
       id: log.id,
       action: log.action,
@@ -33,10 +47,11 @@ export async function GET(
       entityId: log.entityId,
       user: { name: log.user.name, email: log.user.email },
       createdAt: log.createdAt,
-      ipAddress: log.ipAddress,
+      metadata: log.metadata,
+      ipAddress: includeIp ? log.ipAddress : undefined,
     }));
 
-    return NextResponse.json({ logs: formatted });
+    return NextResponse.json({ logs: formatted, canViewIp: includeIp });
   } catch (error) {
     console.error("Get audit logs error:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });

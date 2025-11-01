@@ -116,6 +116,12 @@ function checkSystem(): HealthCheck {
 
 export async function GET(req: NextRequest) {
   try {
+    const healthToken = process.env.HEALTHCHECK_TOKEN;
+    const authHeader = req.headers.get('authorization');
+    const hasElevatedAccess = Boolean(
+      healthToken && authHeader === `Bearer ${healthToken}`
+    );
+
     // Run all health checks in parallel
     const [database, encryption, system] = await Promise.all([
       checkDatabase(),
@@ -126,12 +132,12 @@ export async function GET(req: NextRequest) {
     const checks = { database, encryption, system };
     const isHealthy = Object.values(checks).every(check => check.status === 'ok');
     
-    const response: HealthResponse = {
+    const response: Partial<HealthResponse> = {
       status: isHealthy ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
-      checks,
+      ...(hasElevatedAccess ? { checks } : {}),
     };
-    
+
     return NextResponse.json(response, {
       status: isHealthy ? 200 : 503,
       headers: {
