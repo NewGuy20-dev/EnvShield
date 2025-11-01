@@ -3,7 +3,6 @@
  */
 
 import * as Sentry from '@sentry/nextjs';
-import { Http } from '@sentry/node';
 
 const SENTRY_DSN = process.env.SENTRY_DSN;
 
@@ -16,11 +15,6 @@ if (SENTRY_DSN) {
     
     // Environment
     environment: process.env.NODE_ENV,
-    
-    // Server integrations
-    integrations: [
-      new Http({ tracing: true }),
-    ],
     
     // Filter sensitive data
     beforeSend(event, hint) {

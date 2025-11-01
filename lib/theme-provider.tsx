@@ -25,16 +25,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
   const [ripple, setRipple] = useState<RipplePosition | null>(null);
   const [pendingTheme, setPendingTheme] = useState<Theme | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     // Load theme from localStorage
-    const stored = localStorage.getItem("envshield-theme") as Theme;
-    if (stored) {
-      setThemeState(stored);
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem("envshield-theme") as Theme;
+      if (stored) {
+        setThemeState(stored);
+      }
     }
   }, []);
 
   useEffect(() => {
+    if (!mounted || typeof window === 'undefined') return;
+    
     const root = document.documentElement;
     
     // Remove previous theme classes
@@ -55,10 +61,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.classList.add(resolved);
     root.setAttribute("data-theme", resolved);
     setResolvedTheme(resolved);
-  }, [theme]);
+  }, [theme, mounted]);
 
   // Listen for system theme changes
   useEffect(() => {
+    if (!mounted || typeof window === 'undefined') return;
+    
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     
     const handleChange = () => {
@@ -73,14 +81,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [theme]);
+  }, [theme, mounted]);
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
-    localStorage.setItem("envshield-theme", newTheme);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("envshield-theme", newTheme);
+    }
   };
 
   const setThemeWithRipple = (newTheme: Theme, position: { x: number; y: number }) => {
+    if (typeof window === 'undefined') {
+      setTheme(newTheme);
+      return;
+    }
+    
     // Determine the target theme
     let targetTheme: "light" | "dark";
     if (newTheme === "system") {

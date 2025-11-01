@@ -3,6 +3,7 @@ import prisma from "@/lib/db";
 import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
 import { canViewDecryptedVariables } from "@/lib/permissions";
 import { decryptFromStorage } from "@/lib/encryption";
+import { logger } from "@/lib/logger";
 
 export async function GET(
   req: NextRequest,
@@ -60,7 +61,7 @@ export async function GET(
       try {
         decrypted = decryptFromStorage(v.value);
       } catch (err) {
-        console.error(`Failed to decrypt variable ${v.key}:`, err);
+        logger.error({ error: err, variableKey: v.key }, `Failed to decrypt variable`);
         error = 'Decryption failed';
       }
 
@@ -103,7 +104,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("Get variables error:", error);
+    logger.error({ error }, "Get variables error");
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }
