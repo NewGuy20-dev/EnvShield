@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Clock, User, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import { logger } from '@/lib/logger';
 
 interface HistoryEntry {
   id: string;
   key: string;
-  oldValue: string;
   newValue: string;
+  masked: boolean;
+  decryptionError?: string | null;
   changedBy: string;
   changedByEmail: string;
   createdAt: string;
@@ -35,27 +36,62 @@ export function VariableHistoryModal({
   const [loading, setLoading] = useState(true);
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
   const [rollbackConfirm, setRollbackConfirm] = useState<string | null>(null);
+  const [canReveal, setCanReveal] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const [revealLoading, setRevealLoading] = useState(false);
 
-  useEffect(() => {
-    fetchHistory();
-  }, [variableId]);
-
-  async function fetchHistory() {
+  const fetchHistory = useCallback(async (reveal: boolean) => {
     try {
       setLoading(true);
-      const res = await fetch(
-        `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/variables/${variableId}/history`
+      const url = new URL(
+        `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/variables/${variableId}/history`,
+        window.location.origin
       );
+
+      if (reveal) {
+        url.searchParams.set('reveal', 'true');
+      }
+
+      const res = await fetch(url.toString());
       
       if (!res.ok) throw new Error('Failed to fetch history');
       
       const data = await res.json();
       setHistory(data.history || []);
+      setCanReveal(Boolean(data.canReveal));
+      setRevealed(Boolean(data.reveal));
     } catch (error) {
       logger.error({ error }, 'Failed to fetch variable history');
       console.error('Failed to fetch history:', error);
     } finally {
       setLoading(false);
+    }
+  }, [projectSlug, environmentSlug, variableId]);
+
+  useEffect(() => {
+    fetchHistory(false);
+  }, [fetchHistory]);
+
+  async function handleRevealToggle() {
+    if (!canReveal) return;
+
+    try {
+      if (!revealed) {
+        const confirmReveal = window.confirm(
+          'Reveal decrypted history values? Make sure no unauthorized viewers can see your screen.'
+        );
+
+        if (!confirmReveal) {
+          return;
+        }
+      }
+
+      setRevealLoading(true);
+      await fetchHistory(!revealed);
+    } catch (error) {
+      console.error('Failed to toggle reveal:', error);
+    } finally {
+      setRevealLoading(false);
     }
   }
 
@@ -94,42 +130,45 @@ export function VariableHistoryModal({
     });
   }
 
-  function maskValue(value: string) {
-    if (value.length <= 8) return '••••••••';
-    return value.slice(0, 4) + '••••••••' + value.slice(-4);
-  }
-
-  function renderDiff(oldValue: string, newValue: string) {
-    if (!oldValue) {
+  function renderValue(entry: HistoryEntry) {
+    if (entry.decryptionError) {
       return (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-3">
-          <div className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
-            Created
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
+          <div className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">
+            Decryption Error
           </div>
-          <div className="text-sm text-green-700 dark:text-green-300 font-mono">
-            {maskValue(newValue)}
+          <div className="text-sm text-red-700 dark:text-red-300 font-mono">
+            {entry.decryptionError}
           </div>
         </div>
       );
     }
 
-    return (
-      <div className="space-y-2">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
-          <div className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">
-            Old Value
+    if (entry.masked) {
+      return (
+        <div className="bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded p-3">
+          <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">
+            Value Hidden
           </div>
-          <div className="text-sm text-red-700 dark:text-red-300 font-mono">
-            {maskValue(oldValue)}
+          <div className="text-sm text-gray-700 dark:text-gray-300 font-mono">
+            {entry.newValue}
           </div>
+          {canReveal && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Use the reveal toggle to view decrypted values if you have permission.
+            </p>
+          )}
         </div>
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-3">
-          <div className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
-            New Value
-          </div>
-          <div className="text-sm text-green-700 dark:text-green-300 font-mono">
-            {maskValue(newValue)}
-          </div>
+      );
+    }
+
+    return (
+      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-3">
+        <div className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
+          Decrypted Value
+        </div>
+        <div className="text-sm text-green-700 dark:text-green-300 font-mono break-words">
+          {entry.newValue}
         </div>
       </div>
     );
@@ -158,6 +197,21 @@ export function VariableHistoryModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
+          {canReveal && (
+            <div className="flex items-center justify-end mb-4">
+              <button
+                onClick={handleRevealToggle}
+                disabled={revealLoading}
+                className="px-3 py-2 text-sm rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {revealLoading
+                  ? 'Loading...'
+                  : revealed
+                  ? 'Hide decrypted values'
+                  : 'Reveal decrypted values'}
+              </button>
+            </div>
+          )}
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -216,7 +270,7 @@ export function VariableHistoryModal({
                   {/* Expanded Details */}
                   {expandedEntry === entry.id && (
                     <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                      {renderDiff(entry.oldValue, entry.newValue)}
+                      {renderValue(entry)}
                     </div>
                   )}
 

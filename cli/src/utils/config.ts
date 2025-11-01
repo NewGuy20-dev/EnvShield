@@ -1,6 +1,7 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
+import { spawnSync } from 'child_process';
 
 const HOME = os.homedir();
 const CONFIG_DIR = path.join(HOME, '.envshield');
@@ -37,6 +38,9 @@ export function saveConfig(config: Config): void {
     // Create directory if it doesn't exist
     if (!fs.existsSync(CONFIG_DIR)) {
       fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+      if (process.platform === 'win32') {
+        secureWindowsPath(CONFIG_DIR);
+      }
     }
 
     // Write config file
@@ -44,6 +48,10 @@ export function saveConfig(config: Config): void {
       encoding: 'utf8',
       mode: 0o600, // Owner read/write only
     });
+
+    if (process.platform === 'win32') {
+      secureWindowsPath(CONFIG_FILE);
+    }
   } catch (error) {
     throw new Error(`Failed to save config: ${error}`);
   }
@@ -86,4 +94,23 @@ export function requireAuth(): Config {
     throw new Error('Not authenticated. Please run "envshield login" first.');
   }
   return config;
+}
+
+function secureWindowsPath(targetPath: string) {
+  try {
+    const user = os.userInfo().username;
+
+    // Remove inherited permissions
+    spawnSync('icacls', [targetPath, '/inheritance:r'], { stdio: 'ignore' });
+
+    // Reset permissions to current user only
+    spawnSync('icacls', [targetPath, '/grant:r', `${user}:F`], { stdio: 'ignore' });
+
+    // Remove access for well-known groups that might remain
+    spawnSync('icacls', [targetPath, '/remove', 'Administrators', 'Users', 'Everyone'], {
+      stdio: 'ignore',
+    });
+  } catch (error) {
+    console.warn('Warning: Failed to tighten Windows permissions for EnvShield config:', error);
+  }
 }

@@ -26,6 +26,7 @@ model ApiToken {
   id          String   @id @default(cuid())
   userId      String
   token       String   @unique
+  tokenDigest String?  @unique
   name        String?
   lastUsedAt  DateTime?
   expiresAt   DateTime?

@@ -6,6 +6,7 @@ import prisma from '@/lib/db';
 import { applyRateLimit, cliLimiter, getClientIdentifier } from '@/lib/rateLimit';
 import { handleApiError, AuthError } from '@/lib/errors';
 import { logger, logSecurityEvent } from '@/lib/logger';
+import { MAX_API_TOKENS_PER_USER } from '@/lib/constants';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -72,6 +73,24 @@ export async function POST(req: NextRequest) {
     // Generate API token with esh_ prefix
     const tokenPlain = 'esh_' + crypto.randomBytes(24).toString('hex');
     const tokenHash = await hash(tokenPlain, 12);
+    const tokenDigest = crypto.createHash('sha256').update(tokenPlain).digest('hex');
+
+    const activeTokens = await prisma.apiToken.count({
+      where: {
+        userId: user.id,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    });
+
+    if (activeTokens >= MAX_API_TOKENS_PER_USER) {
+      return NextResponse.json(
+        {
+          error: 'token_limit_reached',
+          message: `You already have ${MAX_API_TOKENS_PER_USER} active tokens. Revoke an existing token before creating a new one.`,
+        },
+        { status: 429 }
+      );
+    }
 
     // Set expiration to 1 year from now
     const expiresAt = new Date();
@@ -82,6 +101,7 @@ export async function POST(req: NextRequest) {
       data: {
         userId: user.id,
         token: tokenHash,
+        tokenDigest,
         name: parsed.tokenName ?? 'CLI Token',
         expiresAt,
       },

@@ -6,9 +6,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { getAuthenticatedUserFromRequest } from '@/lib/authMiddleware';
-import { canViewVariables } from '@/lib/permissions';
+import { canViewDecryptedVariables, canViewVariables } from '@/lib/permissions';
 import { handleApiError, NotFoundError, PermissionError } from '@/lib/errors';
 import { decryptFromStorage } from '@/lib/encryption';
+import { logSecurityEvent } from '@/lib/logger';
+import { maskSecret } from '@/lib/secrets';
 
 export async function GET(
   req: NextRequest,
@@ -39,6 +41,13 @@ export async function GET(
     const member = project.members[0];
     if (!member || !canViewVariables(member.role)) {
       throw new PermissionError('Insufficient permissions');
+    }
+
+    const canViewDecrypted = canViewDecryptedVariables(member.role);
+    const revealRequested = req.nextUrl.searchParams.get('reveal') === 'true';
+
+    if (revealRequested && !canViewDecrypted) {
+      throw new PermissionError('Insufficient permissions to reveal decrypted history');
     }
 
     // Get environment
@@ -88,23 +97,33 @@ export async function GET(
 
     const userMap = new Map(users.map(u => [u.id, u]));
 
-    // Format history with decrypted values (masked for security)
     const formattedHistory = history.map(entry => {
       const user = userMap.get(entry.changedBy);
-      let oldValue = '';
-      let newValue = '';
+      let value = '••••';
+      let masked = true;
+      let decryptionError: string | null = null;
 
-      try {
-        newValue = decryptFromStorage(entry.value);
-      } catch (error) {
-        newValue = '[Decryption failed]';
+      if (revealRequested || canViewDecrypted) {
+        try {
+          const decrypted = decryptFromStorage(entry.value);
+          if (revealRequested) {
+            value = decrypted;
+            masked = false;
+          } else if (canViewDecrypted) {
+            value = maskSecret(decrypted);
+          }
+        } catch (error) {
+          decryptionError = 'Decryption failed';
+          value = '[Decryption failed]';
+        }
       }
 
       return {
         id: entry.id,
         key: entry.key,
-        oldValue, // In a real implementation, you'd need to store old values
-        newValue,
+        newValue: value,
+        masked,
+        decryptionError,
         changedBy: entry.changedBy,
         changedByName: user?.name || 'Unknown',
         changedByEmail: user?.email || 'unknown@example.com',
@@ -112,9 +131,40 @@ export async function GET(
       };
     });
 
+    if (revealRequested) {
+      const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || undefined;
+      logSecurityEvent('variable_history_revealed', 'medium', {
+        projectId: project.id,
+        environmentId: environment.id,
+        variableId: params.varId,
+        userId: auth.user.id,
+        historyEntries: formattedHistory.length,
+        ip,
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          projectId: project.id,
+          userId: auth.user.id,
+          action: 'VARIABLE_HISTORY_REVEALED',
+          entityType: 'VARIABLE',
+          entityId: params.varId,
+          metadata: {
+            environmentId: environment.id,
+            historyEntries: formattedHistory.length,
+            revealRequested: true,
+          },
+          ipAddress: ip,
+          userAgent: req.headers.get('user-agent') || undefined,
+        },
+      });
+    }
+
     return NextResponse.json({
       history: formattedHistory,
       total: formattedHistory.length,
+      reveal: revealRequested,
+      canReveal: canViewDecrypted,
     });
   } catch (error) {
     return handleApiError(error);

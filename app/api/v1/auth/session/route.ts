@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import prisma from "@/lib/db";
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const secret = new TextEncoder().encode(JWT_SECRET);
+import { jwtSecretBuffer } from "@/lib/config";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,7 +14,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const verified = await jwtVerify(token, secret);
+    const verified = await jwtVerify(token, jwtSecretBuffer);
     const userId = verified.payload.id as string;
 
     const user = await prisma.user.findUnique({

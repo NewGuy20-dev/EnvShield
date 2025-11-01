@@ -2,9 +2,8 @@ import { NextRequest } from 'next/server';
 import { compare } from 'bcryptjs';
 import { jwtVerify } from 'jose';
 import prisma from './db';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const secret = new TextEncoder().encode(JWT_SECRET);
+import { jwtSecretBuffer } from './config';
+import crypto from 'crypto';
 
 export interface AuthResult {
   user: {
@@ -29,41 +28,53 @@ export async function getAuthenticatedUserFromRequest(
   // Try Bearer token first (CLI auth)
   const authHeader = req.headers.get('authorization') || '';
   if (authHeader.startsWith('Bearer ')) {
-    const tokenPlain = authHeader.replace('Bearer ', '');
-    
-    // Find all non-expired tokens
-    const tokens = await prisma.apiToken.findMany({
-      where: {
-        expiresAt: { gt: new Date() },
-      },
+    const tokenPlain = authHeader.replace('Bearer ', '').trim();
+    const now = new Date();
+    const digest = crypto.createHash('sha256').update(tokenPlain).digest('hex');
+
+    const candidateToken = await prisma.apiToken.findUnique({
+      where: { tokenDigest: digest },
       include: { user: true },
     });
 
-    // Compare with stored hashed tokens
-    for (const t of tokens) {
+    type ApiTokenWithUser = NonNullable<typeof candidateToken>;
+    const candidates: ApiTokenWithUser[] = [];
+
+    if (candidateToken && (!candidateToken.expiresAt || candidateToken.expiresAt > now)) {
+      candidates.push(candidateToken);
+    } else {
+      const legacyTokens = await prisma.apiToken.findMany({
+        where: {
+          tokenDigest: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        include: { user: true },
+      });
+      candidates.push(...legacyTokens);
+    }
+
+    for (const t of candidates) {
       try {
         const isValid = await compare(tokenPlain, t.token);
-        if (isValid) {
-          // Update lastUsedAt
-          await prisma.apiToken.update({
-            where: { id: t.id },
-            data: { lastUsedAt: new Date() },
-          });
+        if (!isValid) continue;
 
-          return {
-            user: {
-              id: t.user.id,
-              email: t.user.email,
-              name: t.user.name,
-            },
-            token: {
-              id: t.id,
-              name: t.name,
-            },
-          };
-        }
+        await prisma.apiToken.update({
+          where: { id: t.id },
+          data: { lastUsedAt: new Date() },
+        });
+
+        return {
+          user: {
+            id: t.user.id,
+            email: t.user.email,
+            name: t.user.name,
+          },
+          token: {
+            id: t.id,
+            name: t.name,
+          },
+        };
       } catch (err) {
-        // Continue checking other tokens
         continue;
       }
     }
@@ -73,7 +84,7 @@ export async function getAuthenticatedUserFromRequest(
   const sessionToken = req.cookies.get('auth-token')?.value;
   if (sessionToken) {
     try {
-      const verified = await jwtVerify(sessionToken, secret);
+      const verified = await jwtVerify(sessionToken, jwtSecretBuffer);
       const userId = verified.payload.id as string;
       
       const user = await prisma.user.findUnique({

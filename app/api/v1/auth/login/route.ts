@@ -4,11 +4,9 @@ import { loginSchema } from "@/lib/validation";
 import prisma from "@/lib/db";
 import { SignJWT } from "jose";
 import { applyRateLimit, authLimiter, getClientIdentifier } from "@/lib/rateLimit";
-import { handleApiError, AuthError, ValidationError } from "@/lib/errors";
+import { handleApiError, AuthError } from "@/lib/errors";
 import { logger, logSecurityEvent } from "@/lib/logger";
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const secret = new TextEncoder().encode(JWT_SECRET);
+import { jwtSecretBuffer } from "@/lib/config";
 
 export async function POST(req: NextRequest) {
   try {
@@ -75,7 +73,7 @@ export async function POST(req: NextRequest) {
     })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("30d")
-      .sign(secret);
+      .sign(jwtSecretBuffer);
 
     logger.info({ userId: user.id, email: user.email }, 'Login successful');
 
