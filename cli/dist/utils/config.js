@@ -12,6 +12,7 @@ exports.requireAuth = requireAuth;
 const os_1 = __importDefault(require("os"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
+const child_process_1 = require("child_process");
 const HOME = os_1.default.homedir();
 const CONFIG_DIR = path_1.default.join(HOME, '.envshield');
 const CONFIG_FILE = path_1.default.join(CONFIG_DIR, 'config.json');
@@ -40,12 +41,18 @@ function saveConfig(config) {
         // Create directory if it doesn't exist
         if (!fs_1.default.existsSync(CONFIG_DIR)) {
             fs_1.default.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+            if (process.platform === 'win32') {
+                secureWindowsPath(CONFIG_DIR);
+            }
         }
         // Write config file
         fs_1.default.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), {
             encoding: 'utf8',
             mode: 0o600, // Owner read/write only
         });
+        if (process.platform === 'win32') {
+            secureWindowsPath(CONFIG_FILE);
+        }
     }
     catch (error) {
         throw new Error(`Failed to save config: ${error}`);
@@ -86,5 +93,21 @@ function requireAuth() {
         throw new Error('Not authenticated. Please run "envshield login" first.');
     }
     return config;
+}
+function secureWindowsPath(targetPath) {
+    try {
+        const user = os_1.default.userInfo().username;
+        // Remove inherited permissions
+        (0, child_process_1.spawnSync)('icacls', [targetPath, '/inheritance:r'], { stdio: 'ignore' });
+        // Reset permissions to current user only
+        (0, child_process_1.spawnSync)('icacls', [targetPath, '/grant:r', `${user}:F`], { stdio: 'ignore' });
+        // Remove access for well-known groups that might remain
+        (0, child_process_1.spawnSync)('icacls', [targetPath, '/remove', 'Administrators', 'Users', 'Everyone'], {
+            stdio: 'ignore',
+        });
+    }
+    catch (error) {
+        console.warn('Warning: Failed to tighten Windows permissions for EnvShield config:', error);
+    }
 }
 //# sourceMappingURL=config.js.map

@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Additional ignores for production verification:
+    "cli/dist/**",
+    "coverage/**",
+    "scripts/**",
+    "*.config.js",
+    "jest.config.js",
   ]),
 ]);
 

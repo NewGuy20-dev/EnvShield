@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
+import { logger } from "@/lib/logger";
 
 export async function GET(
   req: NextRequest,
@@ -31,7 +32,7 @@ export async function GET(
 
     return NextResponse.json({ environments: formatted });
   } catch (error) {
-    console.error("Get environments error:", error);
+    logger.error({ error }, "Get environments error");
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
