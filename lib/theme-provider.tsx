@@ -27,17 +27,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [pendingTheme, setPendingTheme] = useState<Theme | null>(null);
   const [mounted, setMounted] = useState(false);
 
+  // Load theme from localStorage on mount
   useEffect(() => {
-    setMounted(true);
-    // Load theme from localStorage
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem("envshield-theme") as Theme;
       if (stored) {
         setThemeState(stored);
       }
     }
+    setMounted(true);
   }, []);
 
+  // Apply theme changes
   useEffect(() => {
     if (!mounted || typeof window === 'undefined') return;
     
@@ -60,8 +61,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Apply theme
     root.classList.add(resolved);
     root.setAttribute("data-theme", resolved);
-    setResolvedTheme(resolved);
-  }, [theme, mounted]);
+    
+    // Update resolved theme separately to avoid cascading renders
+    if (resolvedTheme !== resolved) {
+      setResolvedTheme(resolved);
+    }
+  }, [theme, mounted, resolvedTheme]);
 
   // Listen for system theme changes
   useEffect(() => {

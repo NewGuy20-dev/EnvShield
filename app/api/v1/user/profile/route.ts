@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuthenticatedUserFromRequest } from '@/lib/authMiddleware';
 import prisma from '@/lib/db';
+import { logError } from '@/lib/logger';
 
 const updateProfileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ user });
   } catch (error) {
-    console.error('Get profile error:', error);
+    logError(error as Error, { endpoint: 'GET /user/profile' });
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
@@ -91,7 +92,7 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    console.error('Update profile error:', error);
+    logError(error as Error, { endpoint: 'PATCH /user/profile' });
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }

@@ -4,6 +4,7 @@ import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
 import { z } from "zod";
 import { canManageEnvironments } from "@/lib/permissions";
 import { PermissionError, handleApiError } from "@/lib/errors";
+import { logError } from "@/lib/logger";
 
 const createEnvironmentSchema = z.object({
   name: z.string().min(1),
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ environments: formatted });
   } catch (error) {
-    console.error("Get environments error:", error);
+    logError(error as Error, { endpoint: 'GET /environments' });
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof PermissionError) {
       return NextResponse.json({ message: error.message }, { status: 403 });
     }
-    console.error("Create environment error:", error);
+    logError(error as Error, { endpoint: 'POST /environments' });
     return handleApiError(error);
   }
 }

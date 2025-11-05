@@ -4,6 +4,7 @@ import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
 import { canManageProject } from "@/lib/permissions";
 import { PermissionError } from "@/lib/errors";
 import { Role } from "@prisma/client";
+import { logError } from "@/lib/logger";
 
 export async function GET(
   req: NextRequest,
@@ -53,7 +54,7 @@ export async function GET(
 
     return NextResponse.json({ logs: formatted, canViewIp: includeIp });
   } catch (error) {
-    console.error("Get audit logs error:", error);
+    logError(error as Error, { endpoint: 'GET /projects/[slug]/audit' });
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }

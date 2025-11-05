@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUserFromRequest } from '@/lib/authMiddleware';
+import { logError } from '@/lib/logger';
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Whoami error:', error);
+    logError(error as Error, { endpoint: 'GET /cli/whoami' });
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
