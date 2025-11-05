@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { createProjectSchema } from "@/lib/validation";
 import prisma from "@/lib/db";
 import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
+import { logError } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ projects: formattedProjects });
   } catch (error) {
-    console.error("Get projects error:", error);
+    logError(error as Error, { endpoint: "GET /projects" });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.error("Create project error:", error);
+    logError(error as Error, { endpoint: "POST /projects" });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

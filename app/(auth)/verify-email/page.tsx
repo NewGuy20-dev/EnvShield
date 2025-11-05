@@ -72,7 +72,7 @@ function VerifyEmailContent() {
         return;
       }
 
-      router.push("/projects");
+      router.push("/"); // Redirect to dashboard home
     } catch (err) {
       setError("Verification failed");
     } finally {

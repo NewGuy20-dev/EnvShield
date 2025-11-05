@@ -5,6 +5,7 @@ import prisma from "@/lib/db";
 import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
 import { applyRateLimit, authLimiter, getClientIdentifier } from "@/lib/rateLimit";
 import { MAX_API_TOKENS_PER_USER } from "@/lib/constants";
+import { logError } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ tokens });
   } catch (error) {
-    console.error("Get tokens error:", error);
+    logError(error as Error, { endpoint: "GET /tokens" });
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Create token error:", error);
+    logError(error as Error, { endpoint: "POST /tokens" });
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }

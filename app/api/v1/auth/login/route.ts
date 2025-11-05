@@ -53,6 +53,17 @@ export async function POST(req: NextRequest) {
       throw new AuthError("Invalid email or password");
     }
 
+    // Check if user has a password (OAuth-only users don't have passwords)
+    if (!user.passwordHash) {
+      logSecurityEvent('failed_login', 'low', {
+        email: data.email,
+        userId: user.id,
+        reason: 'oauth_only_user',
+        ip: identifier,
+      });
+      throw new AuthError("This account uses social login. Please sign in with Google or GitHub.");
+    }
+
     // Verify password
     const passwordMatch = await compare(data.password, user.passwordHash);
     if (!passwordMatch) {

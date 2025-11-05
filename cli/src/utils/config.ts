@@ -10,7 +10,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 export interface Config {
   apiUrl: string;
   token: string;
-  email: string;
+  email?: string;
 }
 
 /**
@@ -74,7 +74,7 @@ export function clearConfig(): void {
  * Get the default API URL from environment or use default
  */
 export function getDefaultApiUrl(): string {
-  return process.env.ENVSHIELD_API_URL || 'http://localhost:3000/api/v1';
+  return process.env.ENVSHIELD_API_URL || 'https://env-shield.vercel.app/api/v1';
 }
 
 /**

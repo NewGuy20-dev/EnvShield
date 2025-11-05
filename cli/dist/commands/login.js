@@ -10,27 +10,22 @@ const config_1 = require("../utils/config");
 const spinner_1 = require("../utils/spinner");
 async function loginCommand() {
     try {
-        // Prompt for credentials
+        // Prompt for API token
         const answers = await inquirer_1.default.prompt([
             {
-                type: 'input',
-                name: 'email',
-                message: 'Email:',
-                validate: (input) => {
-                    if (!input || !input.includes('@')) {
-                        return 'Please enter a valid email address';
-                    }
-                    return true;
-                },
-            },
-            {
                 type: 'password',
-                name: 'password',
-                message: 'Password:',
+                name: 'token',
+                message: 'API Token (generated from dashboard):',
                 mask: '*',
                 validate: (input) => {
-                    if (!input || input.length < 8) {
-                        return 'Password must be at least 8 characters';
+                    if (!input) {
+                        return 'Token is required';
+                    }
+                    if (!input.startsWith('esh_')) {
+                        return 'Invalid token format. Tokens should start with "esh_"';
+                    }
+                    if (input.length < 20) {
+                        return 'Token appears to be too short';
                     }
                     return true;
                 },
@@ -45,29 +40,24 @@ async function loginCommand() {
                 default: (0, config_1.getDefaultApiUrl)(),
             },
         ]);
-        const spinner = (0, spinner_1.startSpinner)('Authenticating...');
+        const spinner = (0, spinner_1.startSpinner)('Validating token...');
         try {
             const api = (0, api_1.createApiClient)();
             api.defaults.baseURL = apiUrlAnswer.apiUrl;
-            // Call CLI auth endpoint
-            const response = await api.post('/cli/auth', {
-                email: answers.email,
-                password: answers.password,
-                tokenName: `CLI - ${new Date().toLocaleDateString()}`,
-            });
-            spinner.succeed('Authenticated successfully');
+            api.defaults.headers.common['Authorization'] = `Bearer ${answers.token}`;
+            // Validate token by calling whoami endpoint
+            await api.get('/cli/whoami');
+            spinner.succeed('Token validated successfully');
             // Save config
             (0, config_1.saveConfig)({
                 apiUrl: apiUrlAnswer.apiUrl,
-                token: response.data.token,
-                email: answers.email,
+                token: answers.token,
             });
-            (0, spinner_1.success)(`Logged in as ${answers.email}`);
+            (0, spinner_1.success)('Logged in successfully');
             console.log(`Token saved to ~/.envshield/config.json`);
-            console.log(`Token expires: ${new Date(response.data.expiresAt).toLocaleDateString()}`);
         }
         catch (error) {
-            spinner.fail('Authentication failed');
+            spinner.fail('Token validation failed');
             (0, api_1.handleApiError)(error);
         }
     }

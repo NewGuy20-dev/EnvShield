@@ -59,6 +59,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify password
+    if (!user.passwordHash) {
+      logSecurityEvent('cli_auth_failed', 'low', {
+        email: parsed.email,
+        userId: user.id,
+        reason: 'oauth_only_user',
+        ip: identifier,
+      });
+      throw new AuthError('Invalid credentials');
+    }
+
     const isValidPassword = await compare(parsed.password, user.passwordHash);
     if (!isValidPassword) {
       logSecurityEvent('cli_auth_failed', 'low', {

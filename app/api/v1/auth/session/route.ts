@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import prisma from "@/lib/db";
 import { jwtSecretBuffer } from "@/lib/config";
+import { logError } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ user });
   } catch (error) {
-    console.error("Session error:", error);
+    logError(error as Error, { endpoint: "GET /session" });
     return NextResponse.json(
       { message: "Unauthorized" },
       { status: 401 }

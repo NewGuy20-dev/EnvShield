@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/db";
 import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
 import { canDeleteProject, canManageEnvironments } from "@/lib/permissions";
+import { logError } from "@/lib/logger";
 
 const updateProjectSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
@@ -67,7 +68,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("Get project error:", error);
+    logError(error as Error, { endpoint: "GET /projects/[slug]" });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }
@@ -181,7 +182,7 @@ export async function PATCH(
       );
     }
 
-    console.error("Update project error:", error);
+    logError(error as Error, { endpoint: "PATCH /projects/[slug]" });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }
@@ -277,7 +278,7 @@ export async function DELETE(
       message: "Project deleted successfully",
     });
   } catch (error) {
-    console.error("Delete project error:", error);
+    logError(error as Error, { endpoint: "DELETE /projects/[slug]" });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

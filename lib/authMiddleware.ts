@@ -10,12 +10,14 @@ export interface AuthResult {
     id: string;
     email: string;
     name: string | null;
+    image?: string | null;
   };
   token?: {
     id: string;
     name: string | null;
   };
   session?: any;
+  authMethod: 'bearer-token' | 'session' | 'legacy-jwt';
 }
 
 /**
@@ -68,11 +70,13 @@ export async function getAuthenticatedUserFromRequest(
             id: t.user.id,
             email: t.user.email,
             name: t.user.name,
+            image: t.user.image,
           },
           token: {
             id: t.id,
             name: t.name,
           },
+          authMethod: 'bearer-token',
         };
       } catch (err) {
         continue;
@@ -80,7 +84,30 @@ export async function getAuthenticatedUserFromRequest(
     }
   }
 
-  // Try session cookie (web auth)
+  // Try Better Auth session (OAuth or email/password via Better Auth)
+  try {
+    const { auth } = await import('./auth');
+    const session = await auth.api.getSession({
+      headers: req.headers,
+    });
+
+    if (session?.user) {
+      return {
+        user: {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.name,
+          image: session.user.image,
+        },
+        session: session,
+        authMethod: 'session',
+      };
+    }
+  } catch (error) {
+    // Better Auth session invalid or not present, continue to next auth method
+  }
+
+  // Try legacy JWT session cookie (for backward compatibility)
   const sessionToken = req.cookies.get('auth-token')?.value;
   if (sessionToken) {
     try {
@@ -89,13 +116,14 @@ export async function getAuthenticatedUserFromRequest(
       
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, email: true, name: true },
+        select: { id: true, email: true, name: true, image: true },
       });
 
       if (user) {
         return {
           user,
           session: verified.payload,
+          authMethod: 'legacy-jwt',
         };
       }
     } catch (err) {

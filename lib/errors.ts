@@ -120,8 +120,8 @@ export class DatabaseError extends AppError {
  * Handle errors in API routes
  */
 export function handleApiError(error: unknown): Response {
-  // Log error for debugging
-  console.error('API Error:', error);
+  // Log error for debugging - use logError instead of console.error
+  // to prevent sensitive information leakage in production
 
   // Handle known application errors
   if (error instanceof AppError) {

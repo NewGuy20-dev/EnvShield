@@ -1,11 +1,60 @@
+'use client';
+
 import Link from "next/link";
+import { useSession } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
+import { useEffect, useCallback } from "react";
 import { Shield, Lock, Users, GitBranch, Terminal, Zap, ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AnimatedThemeToggler } from "@/registry/magicui/animated-theme-toggler";
 import { AnimatedBackground } from "@/components/shared/animated-background";
+import { LoadingSpinner } from "@/components/shared/loading-spinner";
 
 export default function Home() {
+  const { data: session, isPending } = useSession();
+  const router = useRouter();
+
+  const checkOnboardingStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/v1/user/onboarding-status');
+      if (response.ok) {
+        const data = await response.json();
+        if (!data.onboardingCompleted) {
+          router.replace('/onboarding');
+        } else {
+          router.replace('/projects');
+        }
+      } else {
+        router.replace('/projects');
+      }
+    } catch (error) {
+      console.error('Failed to check onboarding status:', error);
+      router.replace('/projects');
+    }
+  }, [router]);
+
+  // Redirect authenticated users to dashboard or onboarding
+  useEffect(() => {
+    if (!isPending && session) {
+      // Check if user needs onboarding
+      checkOnboardingStatus();
+    }
+  }, [session, isPending, checkOnboardingStatus]);
+
+  // Show loading while checking session
+  if (isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // If authenticated, don't show landing page (will redirect)
+  if (session) {
+    return null;
+  }
   return (
     <div className="min-h-screen relative">
       <AnimatedBackground />

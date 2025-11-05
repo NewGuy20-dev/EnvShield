@@ -9,18 +9,22 @@ import pino from 'pino';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
+// Safe logger configuration - avoid pino-pretty issues in certain environments
 export const logger = pino({
   level: process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info'),
-  transport: isDevelopment
+  // Only use pretty printing in development if explicitly enabled
+  ...(isDevelopment && process.env.USE_PRETTY_LOGS === 'true'
     ? {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss',
-          ignore: 'pid,hostname',
+        transport: {
+          target: 'pino-pretty',
+          options: {
+            colorize: true,
+            translateTime: 'HH:MM:ss',
+            ignore: 'pid,hostname',
+          },
         },
       }
-    : undefined,
+    : {}),
   formatters: {
     level: (label) => {
       return { level: label };

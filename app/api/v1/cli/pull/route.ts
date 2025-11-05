@@ -4,6 +4,7 @@ import { getAuthenticatedUserFromRequest } from '@/lib/authMiddleware';
 import { canViewDecryptedVariables } from '@/lib/permissions';
 import { decryptFromStorage } from '@/lib/encryption';
 import prisma from '@/lib/db';
+import { logError } from '@/lib/logger';
 
 const bodySchema = z.object({
   projectSlug: z.string(),
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
           updatedAt: v.updatedAt.toISOString(),
         };
       } catch (error) {
-        console.error(`Failed to decrypt variable ${v.key}:`, error);
+        logError(error as Error, { context: `Failed to decrypt variable ${v.key}` });
         return {
           key: v.key,
           value: '',
@@ -127,7 +128,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.error('CLI pull error:', error);
+    logError(error as Error, { endpoint: 'POST /cli/pull' });
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }

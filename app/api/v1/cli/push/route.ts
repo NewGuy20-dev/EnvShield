@@ -4,6 +4,7 @@ import { getAuthenticatedUserFromRequest } from '@/lib/authMiddleware';
 import { canModifyVariables } from '@/lib/permissions';
 import { encryptForStorage } from '@/lib/encryption';
 import prisma from '@/lib/db';
+import { logError } from '@/lib/logger';
 
 const bodySchema = z.object({
   projectSlug: z.string(),
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
           created++;
         }
       } catch (error) {
-        console.error(`Failed to process variable ${variable.key}:`, error);
+        logError(error as Error, { context: `Failed to process variable ${variable.key}` });
         errors.push(`Failed to process ${variable.key}`);
       }
     }
@@ -176,7 +177,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.error('CLI push error:', error);
+    logError(error as Error, { endpoint: 'POST /cli/push' });
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }

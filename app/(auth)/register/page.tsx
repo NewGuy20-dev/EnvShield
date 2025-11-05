@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { signupSchema } from "@/lib/validation";
+import { OAuthButtons } from "@/components/auth/OAuthButtons";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -178,14 +179,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Social Login */}
-        <div className="space-y-3">
-          <Button variant="secondary" size="lg" className="w-full">
-            Sign up with GitHub
-          </Button>
-          <Button variant="secondary" size="lg" className="w-full">
-            Sign up with Google
-          </Button>
-        </div>
+        <OAuthButtons />
 
         {/* Footer */}
         <p className="text-center text-sm text-text-secondary-light dark:text-text-secondary-dark mt-6">

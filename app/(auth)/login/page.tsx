@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { loginSchema } from "@/lib/validation";
 import { AnimatedBackground } from "@/components/shared/animated-background";
+import { OAuthButtons } from "@/components/auth/OAuthButtons";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/projects");
+      router.push("/"); // Redirect to dashboard home
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Invalid input");
     } finally {
@@ -137,14 +138,7 @@ export default function LoginPage() {
         </div>
 
         {/* Social Login */}
-        <div className="space-y-3">
-          <Button variant="secondary" size="lg" className="w-full">
-            Continue with GitHub
-          </Button>
-          <Button variant="secondary" size="lg" className="w-full">
-            Continue with Google
-          </Button>
-        </div>
+        <OAuthButtons />
 
         {/* Footer */}
         <p className="text-center text-sm text-text-secondary-light dark:text-text-secondary-dark mt-6">

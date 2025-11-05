@@ -23,6 +23,12 @@ async function debugUser() {
     console.log("👤 Name:", user.name);
     console.log("🆔 ID:", user.id);
     console.log("📅 Created:", user.createdAt);
+    
+    if (!user.passwordHash) {
+      console.log("🔐 Password hash: Not set (OAuth-only user)");
+      return;
+    }
+    
     console.log("🔐 Password hash length:", user.passwordHash.length);
     
     // Test password comparison

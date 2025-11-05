@@ -5,27 +5,22 @@ import { startSpinner, success } from '../utils/spinner';
 
 export async function loginCommand() {
   try {
-    // Prompt for credentials
+    // Prompt for API token
     const answers = await inquirer.prompt([
       {
-        type: 'input',
-        name: 'email',
-        message: 'Email:',
-        validate: (input) => {
-          if (!input || !input.includes('@')) {
-            return 'Please enter a valid email address';
-          }
-          return true;
-        },
-      },
-      {
         type: 'password',
-        name: 'password',
-        message: 'Password:',
+        name: 'token',
+        message: 'API Token (generated from dashboard):',
         mask: '*',
         validate: (input) => {
-          if (!input || input.length < 8) {
-            return 'Password must be at least 8 characters';
+          if (!input) {
+            return 'Token is required';
+          }
+          if (!input.startsWith('esh_')) {
+            return 'Invalid token format. Tokens should start with "esh_"';
+          }
+          if (input.length < 20) {
+            return 'Token appears to be too short';
           }
           return true;
         },
@@ -42,33 +37,28 @@ export async function loginCommand() {
       },
     ]);
 
-    const spinner = startSpinner('Authenticating...');
+    const spinner = startSpinner('Validating token...');
 
     try {
       const api = createApiClient();
       api.defaults.baseURL = apiUrlAnswer.apiUrl;
+      api.defaults.headers.common['Authorization'] = `Bearer ${answers.token}`;
 
-      // Call CLI auth endpoint
-      const response = await api.post('/cli/auth', {
-        email: answers.email,
-        password: answers.password,
-        tokenName: `CLI - ${new Date().toLocaleDateString()}`,
-      });
+      // Validate token by calling whoami endpoint
+      await api.get('/cli/whoami');
 
-      spinner.succeed('Authenticated successfully');
+      spinner.succeed('Token validated successfully');
 
       // Save config
       saveConfig({
         apiUrl: apiUrlAnswer.apiUrl,
-        token: response.data.token,
-        email: answers.email,
+        token: answers.token,
       });
 
-      success(`Logged in as ${answers.email}`);
+      success('Logged in successfully');
       console.log(`Token saved to ~/.envshield/config.json`);
-      console.log(`Token expires: ${new Date(response.data.expiresAt).toLocaleDateString()}`);
     } catch (error) {
-      spinner.fail('Authentication failed');
+      spinner.fail('Token validation failed');
       handleApiError(error);
     }
   } catch (error) {

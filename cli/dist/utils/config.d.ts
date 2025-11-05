@@ -1,7 +1,7 @@
 export interface Config {
     apiUrl: string;
     token: string;
-    email: string;
+    email?: string;
 }
 /**
  * Get the configuration from ~/.envshield/config.json

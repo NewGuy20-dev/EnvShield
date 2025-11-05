@@ -75,7 +75,7 @@ function clearConfig() {
  * Get the default API URL from environment or use default
  */
 function getDefaultApiUrl() {
-    return process.env.ENVSHIELD_API_URL || 'http://localhost:3000/api/v1';
+    return process.env.ENVSHIELD_API_URL || 'https://env-shield.vercel.app/api/v1';
 }
 /**
  * Check if user is logged in (has valid token)
