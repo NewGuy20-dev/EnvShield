@@ -1,111 +1,122 @@
 import { NextRequest, NextResponse } from "next/server";
-import { compare } from "bcryptjs";
 import { loginSchema } from "@/lib/validation";
-import prisma from "@/lib/db";
-import { SignJWT } from "jose";
-import { applyRateLimit, authLimiter, getClientIdentifier } from "@/lib/rateLimit";
+import { authLimiter } from "@/lib/rateLimit";
+import { enforceRateLimit } from "@/lib/rateLimitHelper";
 import { handleApiError, AuthError } from "@/lib/errors";
 import { logger, logSecurityEvent } from "@/lib/logger";
-import { jwtSecretBuffer } from "@/lib/config";
+import { auth } from "@/lib/auth";
+import { extractSetCookies } from "@/lib/cookies";
+import prisma from "@/lib/db";
+import { randomBytes } from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
     // Apply rate limiting (5 attempts per 15 minutes)
-    const identifier = getClientIdentifier(req);
-    const rateLimitResult = await applyRateLimit(identifier, authLimiter, 5, 15 * 60 * 1000);
-    
-    if (!rateLimitResult.success) {
-      logSecurityEvent('rate_limit_exceeded', 'medium', {
-        identifier,
-        endpoint: '/api/v1/auth/login',
-      });
-      
-      return new Response(
-        JSON.stringify({
-          error: 'Too many login attempts',
-          message: 'Please try again later',
-        }),
-        {
-          status: 429,
-          headers: {
-            'Content-Type': 'application/json',
-            'Retry-After': '900', // 15 minutes
-          },
-        }
-      );
-    }
+    const identifier = await enforceRateLimit({
+      req,
+      limiter: authLimiter,
+      max: 5,
+      windowMs: 15 * 60 * 1000,
+      event: 'login_rate_limit_exceeded',
+    });
 
     const body = await req.json();
     logger.info({ email: body.email }, 'Login attempt');
     const data = loginSchema.parse(body);
 
-    // Find user (case-insensitive)
-    const user = await prisma.user.findFirst({
-      where: { email: { mode: "insensitive", equals: data.email } },
-    });
+    try {
+      const betterAuthResponse = await auth.api.signInEmail({
+        body: {
+          email: data.email,
+          password: data.password,
+          rememberMe: data.rememberMe,
+        },
+        headers: req.headers,
+        request: req,
+        asResponse: true,
+        returnHeaders: true,
+      });
 
-    if (!user) {
+      const setCookies = extractSetCookies(betterAuthResponse.headers);
+      const result = betterAuthResponse.response;
+
+      if (!result) {
+        throw new AuthError("Invalid email or password");
+      }
+
+      const user = result.user;
+
+      if (!user) {
+        throw new AuthError("Invalid email or password");
+      }
+
+      // Check if user has 2FA enabled
+      const userWithTwoFactor = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { twoFactorEnabled: true },
+      });
+
+      if (userWithTwoFactor?.twoFactorEnabled) {
+        // Create pending session token
+        const pendingSessionToken = randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+        // Store pending session
+        await prisma.verification.create({
+          data: {
+            identifier: `pending_session_${pendingSessionToken}`,
+            value: JSON.stringify({
+              userId: user.id,
+              sessionToken: result.token,
+            }),
+            expiresAt,
+          },
+        });
+
+        logSecurityEvent('login_2fa_required', 'low', {
+          userId: user.id,
+          email: user.email,
+          ip: identifier,
+        });
+
+        return NextResponse.json(
+          {
+            twoFactorRequired: true,
+            pendingSessionToken,
+            message: "2FA verification required",
+          },
+          { status: 202 }
+        );
+      }
+
+      logger.info({ userId: user.id, email: user.email }, 'Login successful');
+
+      const responseWithCookies = new NextResponse(
+        JSON.stringify({
+          message: "Logged in successfully",
+          user,
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      setCookies.forEach((cookie) => {
+        responseWithCookies.headers.append('Set-Cookie', cookie);
+      });
+
+      return responseWithCookies;
+    } catch (err) {
       logSecurityEvent('failed_login', 'low', {
         email: data.email,
-        reason: 'user_not_found',
+        reason: err instanceof Error ? err.message : 'unknown',
         ip: identifier,
       });
       throw new AuthError("Invalid email or password");
     }
-
-    // Check if user has a password (OAuth-only users don't have passwords)
-    if (!user.passwordHash) {
-      logSecurityEvent('failed_login', 'low', {
-        email: data.email,
-        userId: user.id,
-        reason: 'oauth_only_user',
-        ip: identifier,
-      });
-      throw new AuthError("This account uses social login. Please sign in with Google or GitHub.");
-    }
-
-    // Verify password
-    const passwordMatch = await compare(data.password, user.passwordHash);
-    if (!passwordMatch) {
-      logSecurityEvent('failed_login', 'low', {
-        email: data.email,
-        userId: user.id,
-        reason: 'invalid_password',
-        ip: identifier,
-      });
-      throw new AuthError("Invalid email or password");
-    }
-
-    // Create JWT token
-    const token = await new SignJWT({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("30d")
-      .sign(jwtSecretBuffer);
-
-    logger.info({ userId: user.id, email: user.email }, 'Login successful');
-
-    // Set HTTP-only cookie
-    const response = NextResponse.json(
-      {
-        message: "Logged in successfully",
-        user: { id: user.id, email: user.email, name: user.name },
-      },
-      { status: 200 }
-    );
-
-    response.cookies.set("auth-token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 30 * 24 * 60 * 60, // 30 days
-      path: '/',
-    });
-
-    return response;
   } catch (error) {
     return handleApiError(error);
   }

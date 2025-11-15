@@ -17,10 +17,17 @@ model User {
   onboardingCompleted Boolean  @default(false) // Track if user completed onboarding
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  twoFactorSecret        String?   @map("two_factor_secret")
+  twoFactorEnabled       Boolean   @default(false) @map("two_factor_enabled")
+  twoFactorBackupCodes   String[]  @default([]) @map("two_factor_backup_codes")
+  twoFactorRecoveryCode  String?   @map("two_factor_recovery_code")
+  twoFactorUpdatedAt     DateTime? @map("two_factor_updated_at")
 
   projects      ProjectMember[]
+  invitedProjects ProjectInvite[]  // Invites sent by this user
   apiTokens     ApiToken[]
   auditLogs     AuditLog[]
+  securityAlerts SecurityAlert[]
   accounts      Account[]       // OAuth accounts
   sessions      Session[]       // Better Auth sessions
 
@@ -53,6 +60,7 @@ model Project {
   updatedAt   DateTime @updatedAt
 
   members      ProjectMember[]
+  invites      ProjectInvite[]
   environments Environment[]
   auditLogs    AuditLog[]
 
@@ -73,6 +81,27 @@ model ProjectMember {
   @@map("project_members")
   @@index([projectId])
   @@index([userId])
+}
+
+model ProjectInvite {
+  id        String   @id @default(cuid())
+  projectId String
+  email     String
+  role      Role     @default(DEVELOPER)
+  token     String   @unique
+  expiresAt DateTime
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invitedBy User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, email])
+  @@map("project_invites")
+  @@index([projectId])
+  @@index([email])
+  @@index([expiresAt])
 }
 
 enum Role {
@@ -152,6 +181,21 @@ model AuditLog {
   @@index([createdAt])
 }
 
+model SecurityAlert {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("security_alerts")
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
 // OAuth Account Linking (Better Auth)
 model Account {
   id                     String    @id @default(cuid())
@@ -195,13 +239,12 @@ model Session {
 // Email Verification & OAuth State (Better Auth)
 model Verification {
   id         String   @id @default(cuid())
-  identifier String
+  identifier String   @unique
   value      String   @db.Text
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([identifier])
   @@map("verification")
 }
 

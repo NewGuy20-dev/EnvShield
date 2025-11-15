@@ -26,6 +26,8 @@ export const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   name: z.string().min(2, "Name must be at least 2 characters").optional(),
+  callbackURL: z.string().url().optional(),
+  rememberMe: z.boolean().optional(),
 });
 
 export const resetPasswordSchema = z.object({
@@ -33,7 +35,24 @@ export const resetPasswordSchema = z.object({
 });
 
 export const verifyEmailSchema = z.object({
+  email: z.string().email("Invalid email address"),
   code: z.string().length(6, "Code must be 6 digits").regex(/^\d+$/, "Code must contain only numbers"),
+});
+
+export const resendVerificationSchema = z.object({
+  email: z.string().email("Invalid email address"),
+});
+
+export const passwordResetRequestSchema = z.object({
+  email: z.string().email("Invalid email address"),
+});
+
+export const passwordResetConfirmSchema = z.object({
+  token: z.string().min(1, "Reset token is required"),
+  password: z.string().min(8, "Password must be at least 8 characters").regex(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+    "Password must contain uppercase, lowercase, and number"
+  ),
 });
 
 export const createProjectSchema = z.object({
@@ -72,6 +91,9 @@ export type SignupInput = z.infer<typeof signupSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
+export type PasswordResetRequestInput = z.infer<typeof passwordResetRequestSchema>;
+export type PasswordResetConfirmInput = z.infer<typeof passwordResetConfirmSchema>;
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type CreateEnvironmentInput = z.infer<typeof createEnvironmentSchema>;
 export type CreateVariableInput = z.infer<typeof createVariableSchema>;

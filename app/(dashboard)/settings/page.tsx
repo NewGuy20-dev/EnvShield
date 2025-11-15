@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { User, Lock, Key, Trash2, Copy, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { User, Key, Shield, ShieldAlert, Trash2, Copy, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/shared/loading-spinner";
+import { TwoFactorSettingsPanel } from "@/components/settings/TwoFactorSettingsPanel";
 
 interface ApiToken {
   id: string;
@@ -28,8 +29,6 @@ export default function SettingsPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    currentPassword: "",
-    newPassword: "",
   });
 
   useEffect(() => {
@@ -51,8 +50,6 @@ export default function SettingsPage() {
         setFormData({
           name: data.user.name || "",
           email: data.user.email || "",
-          currentPassword: "",
-          newPassword: "",
         });
       }
     } catch (error) {
@@ -177,9 +174,26 @@ export default function SettingsPage() {
     setMessage({ type: 'success', text: 'Token copied to clipboard!' });
   };
 
+  const [twoFactorState, setTwoFactorState] = useState<{ enabled: boolean; pending: boolean; updatedAt?: string | null } | null>(null);
+
+  useEffect(() => {
+    const loadTwoFactorState = async () => {
+      try {
+        const res = await fetch("/api/v1/auth/2fa/status");
+        if (!res.ok) return;
+        const data = await res.json();
+        setTwoFactorState(data);
+      } catch (error) {
+        console.error("Failed to load 2FA status", error);
+      }
+    };
+
+    loadTwoFactorState();
+  }, []);
+
   const tabs = [
     { id: "profile", label: "Profile", icon: User },
-    { id: "security", label: "Security", icon: Lock },
+    { id: "security", label: "Security", icon: Shield },
     { id: "tokens", label: "API Tokens", icon: Key },
   ];
 
@@ -269,41 +283,41 @@ export default function SettingsPage() {
 
         {activeTab === "security" && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-              Change Password
-            </h2>
-            <Input
-              label="Current Password"
-              type="password"
-              value={formData.currentPassword}
-              onChange={(e) =>
-                setFormData({ ...formData, currentPassword: e.target.value })
-              }
-            />
-            <Input
-              label="New Password"
-              type="password"
-              value={formData.newPassword}
-              onChange={(e) =>
-                setFormData({ ...formData, newPassword: e.target.value })
-              }
-            />
-            <div className="flex gap-3">
-              <Button variant="primary">Update Password</Button>
-              <Button variant="secondary">Cancel</Button>
+            <div className="space-y-3">
+              <h2 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
+                Account Security
+              </h2>
+              <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                Manage two-factor authentication and secure recovery options.
+              </p>
             </div>
+
+            {twoFactorState ? (
+              <TwoFactorSettingsPanel initialState={twoFactorState} />
+            ) : (
+              <div className="py-12 flex justify-center">
+                <LoadingSpinner />
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === "tokens" && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark mb-2">
-                API Tokens
-              </h2>
-              <p className="text-text-secondary-light dark:text-text-secondary-dark">
-                Create and manage API tokens for CLI access
-              </p>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark mb-2">
+                  API Tokens
+                </h2>
+                <p className="text-text-secondary-light dark:text-text-secondary-dark">
+                  Create and manage API tokens for CLI access
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-2xl border border-glass-light-border dark:border-glass-dark-border bg-glass-light dark:bg-glass-dark px-4 py-3 text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                <ShieldAlert className="w-4 h-4 text-warning" />
+                Rotate tokens after enabling 2FA to ensure CLI access stays synced.
+              </div>
             </div>
 
             {/* Create Token Section */}

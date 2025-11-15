@@ -155,16 +155,15 @@ export async function sendPasswordResetEmail(email: string, token: string, name?
 }
 
 /**
- * Send team invitation email
+ * Send project invitation email
  */
-export async function sendTeamInvitationEmail(
+export async function sendProjectInviteEmail(
   email: string,
   inviterName: string,
   projectName: string,
   role: string,
-  inviteToken: string
+  inviteUrl: string
 ) {
-  const inviteUrl = `${APP_URL}/accept-invite?token=${inviteToken}`;
   const subject = `You've been invited to join ${projectName} on EnvShield`;
   const html = `
     <!DOCTYPE html>
@@ -184,7 +183,7 @@ export async function sendTeamInvitationEmail(
         <div class="container">
           <div class="header">
             <h1>🔐 EnvShield</h1>
-            <p>Team Invitation</p>
+            <p>Project Invitation</p>
           </div>
           <div class="content">
             <p>Hi there,</p>
@@ -210,6 +209,20 @@ export async function sendTeamInvitationEmail(
   `;
 
   return sendEmail({ to: email, subject, html });
+}
+
+/**
+ * Send team invitation email (legacy)
+ */
+export async function sendTeamInvitationEmail(
+  email: string,
+  inviterName: string,
+  projectName: string,
+  role: string,
+  inviteToken: string
+) {
+  const inviteUrl = `${APP_URL}/invites/${inviteToken}/accept`;
+  return sendProjectInviteEmail(email, inviterName, projectName, role, inviteUrl);
 }
 
 /**

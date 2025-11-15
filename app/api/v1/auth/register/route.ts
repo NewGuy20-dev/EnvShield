@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hash } from "bcryptjs";
 import { registerSchema } from "@/lib/validation";
-import prisma from "@/lib/db";
 import { applyRateLimit, authLimiter, getClientIdentifier } from "@/lib/rateLimit";
 import { handleApiError, ConflictError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
+import { auth } from "@/lib/auth";
+import prisma from "@/lib/db";
+import { randomBytes } from "crypto";
+import { hash } from "bcryptjs";
+import { sendVerificationEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,26 +43,47 @@ export async function POST(req: NextRequest) {
       throw new ConflictError("Email already registered");
     }
 
-    // Hash password
-    const passwordHash = await hash(data.password, 12);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
+    const result = await auth.api.signUpEmail({
+      body: {
         email: data.email,
+        password: data.password,
         name: data.name,
-        passwordHash,
+        callbackURL: data.callbackURL,
+        rememberMe: data.rememberMe,
+      },
+      headers: req.headers,
+      request: req,
+    });
+
+    if (result.error) {
+      throw new ConflictError(result.error.message || "Registration failed");
+    }
+
+    const verificationCode = randomBytes(3).toString('hex').slice(0, 6).toUpperCase();
+    const hashedCode = await hash(verificationCode, 10);
+
+    await prisma.verification.upsert({
+      where: { identifier: `email_verification_${result.data.user.email.toLowerCase()}` },
+      update: {
+        value: hashedCode,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      },
+      create: {
+        identifier: `email_verification_${result.data.user.email.toLowerCase()}`,
+        value: hashedCode,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
       },
     });
 
-    logger.info({ userId: user.id, email: user.email }, 'User registered successfully');
+    await sendVerificationEmail(result.data.user.email, verificationCode, result.data.user.name || undefined);
 
-    // TODO: Send verification email
+    logger.info({ userId: result.data.user.id, email: result.data.user.email }, 'User registered successfully');
 
     return NextResponse.json(
       {
         message: "User created. Please verify your email.",
-        user: { id: user.id, email: user.email, name: user.name },
+        user: result.data.user,
+        emailVerificationSentPending: true,
       },
       { status: 201 }
     );

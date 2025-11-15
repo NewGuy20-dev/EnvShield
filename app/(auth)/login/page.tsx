@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { loginSchema } from "@/lib/validation";
 import { AnimatedBackground } from "@/components/shared/animated-background";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
+import { TwoFactorChallengeForm } from "@/components/auth/TwoFactorChallengeForm";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,6 +19,8 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pendingSessionToken, setPendingSessionToken] = useState<string | null>(null);
+  const [twoFactorRequired, setTwoFactorRequired] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,18 +36,29 @@ export default function LoginPage() {
         body: JSON.stringify(result),
       });
 
+      const data = await response.json();
+
+      if (response.status === 202 && data.twoFactorRequired) {
+        setTwoFactorRequired(true);
+        setPendingSessionToken(data.pendingSessionToken);
+        return;
+      }
+
       if (!response.ok) {
-        const data = await response.json();
         setError(data.message || "Login failed");
         return;
       }
 
-      router.push("/"); // Redirect to dashboard home
+      router.push("/");
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Invalid input");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleChallengeSuccess = () => {
+    router.push("/");
   };
 
   return (
@@ -63,72 +77,92 @@ export default function LoginPage() {
             <div className="flex items-center justify-center gap-2 mb-6">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/10 animate-glow-pulse">
                 <Shield className="w-8 h-8 text-primary" />
-              </div>
-            </div>
-            <h1 className="text-3xl lg:text-4xl font-bold text-text-primary-light dark:text-text-primary-dark mb-3 tracking-tight">
-              Welcome Back
-            </h1>
             <p className="text-text-secondary-light dark:text-text-secondary-dark text-base">
               Sign in to your EnvShield account
             </p>
           </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 rounded-lg bg-error/10 border border-error/20 text-error text-sm animate-shake">
-              {error}
+        {!twoFactorRequired ? (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="p-3 rounded-lg bg-error/10 border border-error/20 text-error text-sm animate-shake">
+                {error}
+              </div>
+            )}
+            <Input
+              label="Email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              icon={<Mail className="w-4 h-4" />}
+            />
+
+            <Input
+              label="Password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              icon={<Lock className="w-4 h-4" />}
+            />
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded accent-primary"
+                />
+                <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                  Remember me
+                </span>
+              </label>
+              <Link href="/forgot-password">
+                <span className="text-sm text-primary hover:text-primary/80 transition-colors">
+                  Forgot password?
+                </span>
+              </Link>
             </div>
-          )}
 
-          <Input
-            label="Email"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            icon={<Mail className="w-4 h-4" />}
-          />
-
-          <Input
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            icon={<Lock className="w-4 h-4" />}
-          />
-
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded accent-primary"
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              loading={loading}
+              className="w-full"
+              icon={!loading && <ArrowRight className="w-4 h-4" />}
+            >
+              {loading ? "Signing in..." : "Sign In"}
+            </Button>
+          </form>
+        ) : (
+          <div className="space-y-4">
+            {challengeError && (
+              <div className="p-3 rounded-lg bg-error/10 border border-error/20 text-error text-sm">
+                {challengeError}
+              </div>
+            )}
+            {pendingSessionToken && (
+              <TwoFactorChallengeForm
+                pendingSessionToken={pendingSessionToken}
+                onSuccess={handleChallengeSuccess}
               />
-              <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                Remember me
-              </span>
-            </label>
-            <Link href="/forgot-password">
-              <span className="text-sm text-primary hover:text-primary/80 transition-colors">
-                Forgot password?
-              </span>
-            </Link>
+            )}
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setTwoFactorRequired(false);
+                setPendingSessionToken(null);
+                setChallengeError(null);
+              }}
+            >
+              Use a different account
+            </Button>
           </div>
-
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            loading={loading}
-            className="w-full"
-            icon={!loading && <ArrowRight className="w-4 h-4" />}
-          >
-            {loading ? "Signing in..." : "Sign In"}
-          </Button>
-        </form>
+        )}
 
         {/* Divider */}
         <div className="my-6 flex items-center gap-4">

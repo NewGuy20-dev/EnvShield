@@ -12,6 +12,8 @@ if (JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET must be at least 32 characters for adequate entropy');
 }
 
+export const ENABLE_LEGACY_JWT = process.env.ENABLE_LEGACY_JWT === 'true';
+
 const encoder = new TextEncoder();
 
 export const jwtSecretString = JWT_SECRET;

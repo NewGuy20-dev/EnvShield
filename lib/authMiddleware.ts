@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { compare } from 'bcryptjs';
 import { jwtVerify } from 'jose';
 import prisma from './db';
-import { jwtSecretBuffer } from './config';
+import { ENABLE_LEGACY_JWT, jwtSecretBuffer } from './config';
 import crypto from 'crypto';
 
 export interface AuthResult {
@@ -108,27 +108,29 @@ export async function getAuthenticatedUserFromRequest(
   }
 
   // Try legacy JWT session cookie (for backward compatibility)
-  const sessionToken = req.cookies.get('auth-token')?.value;
-  if (sessionToken) {
-    try {
-      const verified = await jwtVerify(sessionToken, jwtSecretBuffer);
-      const userId = verified.payload.id as string;
-      
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, email: true, name: true, image: true },
-      });
+  if (ENABLE_LEGACY_JWT) {
+    const sessionToken = req.cookies.get('auth-token')?.value;
+    if (sessionToken) {
+      try {
+        const verified = await jwtVerify(sessionToken, jwtSecretBuffer);
+        const userId = verified.payload.id as string;
+        
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, email: true, name: true, image: true },
+        });
 
-      if (user) {
-        return {
-          user,
-          session: verified.payload,
-          authMethod: 'legacy-jwt',
-        };
+        if (user) {
+          return {
+            user,
+            session: verified.payload,
+            authMethod: 'legacy-jwt',
+          };
+        }
+      } catch (err) {
+        // Invalid session token
+        return null;
       }
-    } catch (err) {
-      // Invalid session token
-      return null;
     }
   }
 
