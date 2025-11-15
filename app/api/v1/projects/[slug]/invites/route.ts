@@ -5,7 +5,7 @@ import { handleApiError, AuthError, PermissionError, NotFoundError } from "@/lib
 import { logger, logSecurityEvent } from "@/lib/logger";
 import prisma from "@/lib/db";
 import { sendProjectInviteEmail } from "@/lib/email";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { applyRateLimit, authLimiter, getClientIdentifier } from "@/lib/rateLimit";
 
 const inviteSchema = z.object({
@@ -97,6 +97,7 @@ export async function POST(
 
     // Generate invite token
     const token = randomBytes(32).toString("hex");
+    const tokenDigest = createHash("sha256").update(token).digest("hex");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     // Create invite
@@ -105,7 +106,7 @@ export async function POST(
         projectId,
         email,
         role,
-        token,
+        token: tokenDigest,
         expiresAt,
         createdBy: auth.user.id,
       },

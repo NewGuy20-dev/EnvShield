@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createApiClient = createApiClient;
 exports.handleApiError = handleApiError;
+exports.apiRequest = apiRequest;
 const axios_1 = __importDefault(require("axios"));
 const config_1 = require("./config");
 /**
@@ -71,5 +72,22 @@ function handleApiError(error) {
         console.error('❌ An unexpected error occurred');
     }
     process.exit(1);
+}
+async function apiRequest(path, options = {}) {
+    const client = createApiClient();
+    const method = options.method || 'GET';
+    try {
+        const response = await client.request({
+            url: path,
+            method,
+            ...(method.toUpperCase() !== 'GET' && options.body !== undefined
+                ? { data: options.body }
+                : {}),
+        });
+        return response.data;
+    }
+    catch (error) {
+        handleApiError(error);
+    }
 }
 //# sourceMappingURL=api.js.map

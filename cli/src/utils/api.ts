@@ -68,3 +68,30 @@ export function handleApiError(error: any): never {
   }
   process.exit(1);
 }
+
+export interface ApiRequestOptions {
+  method?: string;
+  body?: any;
+}
+
+export async function apiRequest<T>(
+  path: string,
+  options: ApiRequestOptions = {}
+): Promise<T> {
+  const client = createApiClient();
+  const method = options.method || 'GET';
+
+  try {
+    const response = await client.request<T>({
+      url: path,
+      method,
+      ...(method.toUpperCase() !== 'GET' && options.body !== undefined
+        ? { data: options.body }
+        : {}),
+    });
+
+    return response.data;
+  } catch (error: any) {
+    handleApiError(error);
+  }
+}

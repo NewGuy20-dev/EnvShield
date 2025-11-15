@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { loginCommand } from './commands/login';
+import { registerLoginCommand } from './commands/login';
 import { logoutCommand } from './commands/logout';
 import { whoamiCommand } from './commands/whoami';
 import { listCommand } from './commands/list';
@@ -10,6 +10,12 @@ import { initCommand } from './commands/init';
 import { pullCommand } from './commands/pull';
 import { pushCommand } from './commands/push';
 import { viewCommand } from './commands/view';
+import { registerProfileCommand } from './commands/profile';
+import { importCommand } from './commands/import';
+import { exportCommand } from './commands/export';
+import { searchCommand } from './commands/search';
+import { completionCommand } from './commands/completion';
+import { bulkCommand } from './commands/bulk';
 
 const packageJson = JSON.parse(
   readFileSync(join(__dirname, '../package.json'), 'utf-8')
@@ -23,10 +29,10 @@ program
   .description('🛡️  EnvShield - Secure Environment Variable Manager');
 
 // Login command
-program
-  .command('login')
-  .description('Authenticate with EnvShield')
-  .action(loginCommand);
+registerLoginCommand(program);
+
+// Profile management command
+registerProfileCommand(program);
 
 // Logout command
 program
@@ -76,6 +82,19 @@ program
   .option('--reveal', 'Show full values instead of masked')
   .option('--filter <text>', 'Filter variables by key or description')
   .action(viewCommand);
+
+// Import/Export commands
+program.addCommand(importCommand);
+program.addCommand(exportCommand);
+
+// Search command
+program.addCommand(searchCommand);
+
+// Bulk operations
+program.addCommand(bulkCommand);
+
+// Shell completion
+program.addCommand(completionCommand);
 
 // Display help if no command is provided
 if (!process.argv.slice(2).length) {

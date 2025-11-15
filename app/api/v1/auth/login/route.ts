@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { extractSetCookies } from "@/lib/cookies";
 import prisma from "@/lib/db";
 import { randomBytes } from "crypto";
+import { queueSecurityAlert, recordFailedLoginAttempt } from "@/lib/securityEvents";
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
       });
 
       const setCookies = extractSetCookies(betterAuthResponse.headers);
-      const result = betterAuthResponse.response;
+      const result = await betterAuthResponse.json();
 
       if (!result) {
         throw new AuthError("Invalid email or password");
@@ -108,8 +109,29 @@ export async function POST(req: NextRequest) {
         responseWithCookies.headers.append('Set-Cookie', cookie);
       });
 
+      await queueSecurityAlert({
+        userId: user.id,
+        type: 'new_session',
+        metadata: {
+          ip: identifier,
+          userAgent: req.headers.get('user-agent') || undefined,
+        },
+      });
+
       return responseWithCookies;
     } catch (err) {
+      const userForAlerts = await prisma.user.findUnique({
+        where: { email: data.email },
+        select: { id: true },
+      });
+
+      if (userForAlerts) {
+        await recordFailedLoginAttempt({
+          userId: userForAlerts.id,
+          identifier,
+        });
+      }
+
       logSecurityEvent('failed_login', 'low', {
         email: data.email,
         reason: err instanceof Error ? err.message : 'unknown',

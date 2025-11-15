@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
       response.token = {
         id: auth.token.id,
         name: auth.token.name,
+        lastUsedAt: auth.token.lastUsedAt,
+        expiresAt: auth.token.expiresAt,
       };
     }
 

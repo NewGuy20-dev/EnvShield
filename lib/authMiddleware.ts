@@ -15,6 +15,8 @@ export interface AuthResult {
   token?: {
     id: string;
     name: string | null;
+    lastUsedAt?: Date | null;
+    expiresAt?: Date | null;
   };
   session?: any;
   authMethod: 'bearer-token' | 'session' | 'legacy-jwt';
@@ -34,53 +36,46 @@ export async function getAuthenticatedUserFromRequest(
     const now = new Date();
     const digest = crypto.createHash('sha256').update(tokenPlain).digest('hex');
 
+    // Primary lookup by tokenDigest (fast SHA-256 lookup)
     const candidateToken = await prisma.apiToken.findUnique({
       where: { tokenDigest: digest },
       include: { user: true },
     });
 
-    type ApiTokenWithUser = NonNullable<typeof candidateToken>;
-    const candidates: ApiTokenWithUser[] = [];
-
     if (candidateToken && (!candidateToken.expiresAt || candidateToken.expiresAt > now)) {
-      candidates.push(candidateToken);
-    } else {
-      const legacyTokens = await prisma.apiToken.findMany({
-        where: {
-          tokenDigest: null,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-        },
-        include: { user: true },
-      });
-      candidates.push(...legacyTokens);
-    }
-
-    for (const t of candidates) {
-      try {
-        const isValid = await compare(tokenPlain, t.token);
-        if (!isValid) continue;
-
-        await prisma.apiToken.update({
-          where: { id: t.id },
-          data: { lastUsedAt: new Date() },
-        });
-
-        return {
-          user: {
-            id: t.user.id,
-            email: t.user.email,
-            name: t.user.name,
-            image: t.user.image,
-          },
-          token: {
-            id: t.id,
-            name: t.name,
-          },
-          authMethod: 'bearer-token',
-        };
-      } catch (err) {
-        continue;
+      // Verify token hash if available (for additional security)
+      if (candidateToken.tokenHash) {
+        try {
+          const isValid = await compare(tokenPlain, candidateToken.tokenHash);
+          if (!isValid) {
+            return null;
+          }
+        } catch (err) {
+          return null;
+        }
       }
+
+      // Update last used timestamp
+      const updatedToken = await prisma.apiToken.update({
+        where: { id: candidateToken.id },
+        data: { lastUsedAt: new Date() },
+      });
+
+      return {
+        user: {
+          id: candidateToken.user.id,
+          email: candidateToken.user.email,
+          name: candidateToken.user.name,
+          image: candidateToken.user.image,
+        },
+        token: {
+          id: candidateToken.id,
+          name: candidateToken.name,
+          lastUsedAt: updatedToken.lastUsedAt,
+          expiresAt: updatedToken.expiresAt,
+        },
+        authMethod: 'bearer-token',
+      };
     }
   }
 

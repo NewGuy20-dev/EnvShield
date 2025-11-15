@@ -4,7 +4,7 @@ import { handleApiError } from "@/lib/errors";
 import { enforceRateLimit } from "@/lib/rateLimitHelper";
 import { passwordResetLimiter } from "@/lib/rateLimit";
 import prisma from "@/lib/db";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { hash } from "bcryptjs";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { queueSecurityAlert } from "@/lib/securityEvents";
@@ -31,17 +31,41 @@ export async function POST(req: NextRequest) {
 
     if (user) {
       const token = randomBytes(32).toString("hex");
+      const tokenDigest = createHash("sha256").update(token).digest("hex");
       const hashedToken = await hash(token, 12);
 
+      // Remove any existing reset tokens for this user (legacy + new format)
+      await prisma.verification.deleteMany({
+        where: {
+          OR: [
+            { identifier: `password_reset_${email.toLowerCase()}` },
+            {
+              AND: [
+                { identifier: { startsWith: "password_reset_" } },
+                { value: { contains: `"userId":"${user.id}"` } },
+              ],
+            },
+          ],
+        },
+      });
+
       await prisma.verification.upsert({
-        where: { identifier: `password_reset_${email.toLowerCase()}` },
+        where: { identifier: `password_reset_${tokenDigest}` },
         update: {
-          value: hashedToken,
+          value: JSON.stringify({
+            hash: hashedToken,
+            userId: user.id,
+            email: user.email.toLowerCase(),
+          }),
           expiresAt: new Date(Date.now() + RESET_EXPIRY_MINUTES * 60 * 1000),
         },
         create: {
-          identifier: `password_reset_${email.toLowerCase()}`,
-          value: hashedToken,
+          identifier: `password_reset_${tokenDigest}`,
+          value: JSON.stringify({
+            hash: hashedToken,
+            userId: user.id,
+            email: user.email.toLowerCase(),
+          }),
           expiresAt: new Date(Date.now() + RESET_EXPIRY_MINUTES * 60 * 1000),
         },
       });

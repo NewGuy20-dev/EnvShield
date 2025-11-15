@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Shield, Mail, ArrowLeft } from "lucide-react";
+import { Shield, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/shared/loading-spinner";
@@ -56,6 +56,11 @@ function VerifyEmailContent() {
       return;
     }
 
+    if (!email) {
+      setError("Email is required");
+      return;
+    }
+
     setError("");
     setLoading(true);
 
@@ -63,7 +68,7 @@ function VerifyEmailContent() {
       const response = await fetch("/api/v1/auth/verify-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: codeString }),
+        body: JSON.stringify({ email, code: codeString }),
       });
 
       if (!response.ok) {
@@ -73,7 +78,7 @@ function VerifyEmailContent() {
       }
 
       router.push("/"); // Redirect to dashboard home
-    } catch (err) {
+    } catch {
       setError("Verification failed");
     } finally {
       setLoading(false);
@@ -81,13 +86,23 @@ function VerifyEmailContent() {
   };
 
   const handleResend = async () => {
+    if (!email) {
+      setError("Email is required");
+      return;
+    }
+    
     setError("");
     try {
-      await fetch("/api/v1/auth/resend-code", {
-        method: "POST",
+      const response = await fetch("/api/v1/auth/verify-email", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+      
+      if (!response.ok) {
+        throw new Error("Failed to resend code");
+      }
+      
       setResendCountdown(60);
     } catch {
       setError("Failed to resend code");
@@ -158,7 +173,7 @@ function VerifyEmailContent() {
                 type="button"
                 className="text-sm text-primary hover:text-primary/80 transition-colors font-medium"
               >
-                Didn't receive code? Resend
+                Didn&apos;t receive code? Resend
               </button>
             )}
           </div>

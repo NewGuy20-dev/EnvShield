@@ -1,6 +1,6 @@
 {
   "name": "@envshield/cli",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "CLI for EnvShield - Secure Environment Variable Manager",
   "main": "dist/index.js",
   "bin": {

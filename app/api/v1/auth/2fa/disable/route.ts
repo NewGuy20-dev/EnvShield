@@ -8,6 +8,7 @@ import prisma from "@/lib/db";
 import { verifyTwoFactorToken, verifyBackupCode, generateRecoveryCode } from "@/lib/twoFactor";
 import { authLimiter } from "@/lib/rateLimit";
 import { enforceRateLimit } from "@/lib/rateLimitHelper";
+import { queueSecurityAlert } from "@/lib/securityEvents";
 
 const disableSchema = z.object({
   password: z.string().min(1, "Password required"),
@@ -111,6 +112,14 @@ export async function POST(req: NextRequest) {
     logSecurityEvent("two_factor_disabled", "medium", {
       userId: auth.user.id,
       ip: identifier,
+    });
+
+    await queueSecurityAlert({
+      userId: auth.user.id,
+      type: "two_factor_disabled",
+      metadata: {
+        ip: identifier,
+      },
     });
 
     return NextResponse.json({

@@ -4,7 +4,7 @@ import { handleApiError, AuthError } from "@/lib/errors";
 import prisma from "@/lib/db";
 import { compare, hash } from "bcryptjs";
 import { sendVerificationEmail } from "@/lib/email";
-import { randomBytes } from "crypto";
+import { randomInt } from "crypto";
 import { enforceRateLimit } from "@/lib/rateLimitHelper";
 import { authLimiter } from "@/lib/rateLimit";
 
@@ -33,12 +33,21 @@ export async function POST(req: NextRequest) {
       throw new AuthError("Invalid or expired verification code");
     }
 
+    const isValid = await compare(data.code, verification.value);
+
+    if (!isValid) {
+      throw new AuthError("Invalid or expired verification code");
+    }
+
     const user = await prisma.user.findUnique({
       where: { email: data.email },
     });
 
     if (!user) {
-      throw new AuthError("User not found");
+      await prisma.verification
+        .delete({ where: { identifier } })
+        .catch(() => undefined);
+      throw new AuthError("Invalid or expired verification code");
     }
 
     await prisma.user.update({
@@ -72,11 +81,13 @@ export async function PUT(req: NextRequest) {
       where: { email },
     });
 
-    if (!user) {
-      throw new AuthError("User not found");
+    const responseMessage = "If the account exists, a verification code has been sent.";
+
+    if (!user || user.emailVerified) {
+      return NextResponse.json({ message: responseMessage });
     }
 
-    const code = randomBytes(3).toString("hex").toUpperCase();
+    const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
     const hashedCode = await hash(code, 10);
 
     await prisma.verification.upsert({
@@ -94,7 +105,7 @@ export async function PUT(req: NextRequest) {
 
     await sendVerificationEmail(email, code, user.name || undefined);
 
-    return NextResponse.json({ message: "Verification code sent" });
+    return NextResponse.json({ message: responseMessage });
   } catch (error) {
     return handleApiError(error);
   }

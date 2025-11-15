@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Shield, Mail, Lock, User, Building2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +80,10 @@ export default function RegisterPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          <Suspense fallback={null}>
+            <InviteBanner />
+          </Suspense>
+
           {error && (
             <div className="p-3 rounded-lg bg-error/10 border border-error/20 text-error text-sm animate-shake">
               {error}
@@ -207,6 +211,19 @@ export default function RegisterPage() {
           <div>Support</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function InviteBanner() {
+  const searchParams = useSearchParams();
+  const hasInvite = !!searchParams.get("invite");
+
+  if (!hasInvite) return null;
+
+  return (
+    <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm text-text-primary-light dark:text-text-primary-dark">
+      You're joining EnvShield via a project invite. Complete registration with this email to be added to the project automatically.
     </div>
   );
 }

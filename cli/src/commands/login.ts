@@ -2,63 +2,145 @@ import inquirer from 'inquirer';
 import { createApiClient, handleApiError } from '../utils/api';
 import { saveConfig, getDefaultApiUrl } from '../utils/config';
 import { startSpinner, success } from '../utils/spinner';
+import { Command } from 'commander';
 
-export async function loginCommand() {
+interface LoginOptions {
+  token?: string;
+  profile?: string;
+  apiUrl?: string;
+}
+
+export async function loginCommand(options: LoginOptions = {}) {
   try {
-    // Prompt for API token
-    const answers = await inquirer.prompt([
+    // If token provided, use token-based authentication (non-interactive)
+    if (options.token) {
+      return await tokenBasedLogin(options.token, options.profile, options.apiUrl);
+    }
+
+    // Interactive email/password/2FA authentication
+    const apiUrl = options.apiUrl || getDefaultApiUrl();
+    const api = createApiClient();
+    api.defaults.baseURL = apiUrl;
+
+    // Prompt for credentials
+    const { email, password } = await inquirer.prompt([
       {
-        type: 'password',
-        name: 'token',
-        message: 'API Token (generated from dashboard):',
-        mask: '*',
+        type: 'input',
+        name: 'email',
+        message: 'Email:',
         validate: (input) => {
-          if (!input) {
-            return 'Token is required';
-          }
-          if (!input.startsWith('esh_')) {
-            return 'Invalid token format. Tokens should start with "esh_"';
-          }
-          if (input.length < 20) {
-            return 'Token appears to be too short';
-          }
+          if (!input) return 'Email is required';
+          if (!/\S+@\S+\.\S+/.test(input)) return 'Invalid email format';
           return true;
         },
       },
-    ]);
-
-    // Prompt for API URL (optional)
-    const apiUrlAnswer = await inquirer.prompt([
       {
-        type: 'input',
-        name: 'apiUrl',
-        message: 'API URL (press Enter for default):',
-        default: getDefaultApiUrl(),
+        type: 'password',
+        name: 'password',
+        message: 'Password:',
+        mask: '*',
+        validate: (input) => (input ? true : 'Password is required'),
       },
     ]);
 
-    const spinner = startSpinner('Validating token...');
+    // Prompt for optional token name
+    const { tokenName } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'tokenName',
+        message: 'Token name (optional):',
+        default: `CLI Token - ${new Date().toLocaleDateString()}`,
+      },
+    ]);
+
+    const spinner = startSpinner('Authenticating...');
 
     try {
-      const api = createApiClient();
-      api.defaults.baseURL = apiUrlAnswer.apiUrl;
-      api.defaults.headers.common['Authorization'] = `Bearer ${answers.token}`;
+      let response = await api.post(
+        '/cli/auth',
+        {
+          email,
+          password,
+          tokenName,
+        },
+        {
+          validateStatus: (status) =>
+            (status >= 200 && status < 300) || status === 428,
+        }
+      );
 
-      // Validate token by calling whoami endpoint
-      await api.get('/cli/whoami');
+      // Check if 2FA is required
+      if (response.status === 428 && response.data.twoFactorRequired) {
+        spinner.stop();
+        console.log('\n🔐 Two-factor authentication required');
 
-      spinner.succeed('Token validated successfully');
+        const { code, method } = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'method',
+            message: 'Select verification method:',
+            choices: [
+              { name: 'Authenticator App (TOTP)', value: 'totp' },
+              { name: 'Backup Code', value: 'backup' },
+            ],
+          },
+          {
+            type: 'input',
+            name: 'code',
+            message: (answers: any) =>
+              answers.method === 'totp'
+                ? '6-digit code from authenticator app:'
+                : 'Backup code:',
+            validate: (input) => (input ? true : 'Code is required'),
+          },
+        ]);
 
-      // Save config
-      saveConfig({
-        apiUrl: apiUrlAnswer.apiUrl,
-        token: answers.token,
-      });
+        // Retry with 2FA code
+        spinner.start('Verifying 2FA code...');
+        const payload: any = { email, password, tokenName };
+        if (method === 'totp') {
+          payload.twoFactorToken = code;
+        } else {
+          payload.backupCode = code;
+        }
+        response = await api.post('/cli/auth', payload, {
+          validateStatus: (status) =>
+            (status >= 200 && status < 300) || status === 428,
+        });
+      }
 
-      success('Logged in successfully');
-      console.log(`Token saved to ~/.envshield/config.json`);
-    } catch (error) {
-      spinner.fail('Token validation failed');
+      if (response.data.token) {
+        spinner.succeed('Authentication successful');
+
+        // Save config
+        saveConfig(
+          {
+            apiUrl,
+            token: response.data.token,
+            tokenId: response.data.tokenId,
+            tokenName: response.data.tokenName,
+            expiresAt: response.data.expiresAt,
+          },
+          options.profile
+        );
+
+        success(
+          `Logged in successfully as ${email}${
+            options.profile ? ` (profile: ${options.profile})` : ''
+          }`
+        );
+        console.log(`Token saved to ~/.envshield/config.json`);
+        if (response.data.expiresAt) {
+          const expiresDate = new Date(response.data.expiresAt);
+          console.log(`Token expires: ${expiresDate.toLocaleDateString()}`);
+        }
+      } else {
+        spinner.fail('Authentication failed');
+        console.error('No token received from server');
+        process.exit(1);
+      }
+    } catch (error: any) {
+      spinner.fail('Authentication failed');
       handleApiError(error);
     }
   } catch (error) {
@@ -68,4 +150,52 @@ export async function loginCommand() {
     }
     throw error;
   }
+}
+
+async function tokenBasedLogin(
+  token: string,
+  profile?: string,
+  apiUrlOverride?: string
+) {
+  const apiUrl = apiUrlOverride || getDefaultApiUrl();
+  const api = createApiClient();
+  api.defaults.baseURL = apiUrl;
+  api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+  const spinner = startSpinner('Validating token...');
+
+  try {
+    const response = await api.get('/cli/whoami');
+    spinner.succeed('Token validated successfully');
+
+    // Save config
+    saveConfig(
+      {
+        apiUrl,
+        token,
+      },
+      profile
+    );
+
+    success(
+      `Logged in successfully${profile ? ` (profile: ${profile})` : ''}`
+    );
+    console.log(`Token saved to ~/.envshield/config.json`);
+  } catch (error) {
+    spinner.fail('Token validation failed');
+    handleApiError(error);
+  }
+}
+
+export function registerLoginCommand(program: Command) {
+  program
+    .command('login')
+    .description('Authenticate with EnvShield')
+    .option(
+      '-t, --token <token>',
+      'API token for non-interactive authentication (generated from dashboard)'
+    )
+    .option('-p, --profile <name>', 'Profile name for multi-profile support')
+    .option('--api-url <url>', 'Custom API URL')
+    .action(loginCommand);
 }

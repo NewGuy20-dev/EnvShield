@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import { LoadingSpinner } from "@/components/shared/loading-spinner";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ImportExportDrawer } from "@/components/variables/ImportExportDrawer";
 
 interface Variable {
   id: string;
@@ -47,6 +48,8 @@ export default function VariablesPage({
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const [showAddModal, setShowAddModal] = useState(false);
   const [newVariable, setNewVariable] = useState({ key: "", value: "", description: "" });
+  const [showImportDrawer, setShowImportDrawer] = useState(false);
+  const [showExportDrawer, setShowExportDrawer] = useState(false);
 
   useEffect(() => {
     fetchVariables();
@@ -139,6 +142,7 @@ export default function VariablesPage({
             variant="secondary"
             size="lg"
             icon={<Download className="w-5 h-5" />}
+            onClick={() => setShowExportDrawer(true)}
           >
             Export
           </Button>
@@ -146,6 +150,7 @@ export default function VariablesPage({
             variant="secondary"
             size="lg"
             icon={<Upload className="w-5 h-5" />}
+            onClick={() => setShowImportDrawer(true)}
           >
             Import
           </Button>
@@ -335,6 +340,23 @@ export default function VariablesPage({
           </ModalFooter>
         </div>
       </Modal>
+
+      {/* Import/Export Drawers */}
+      <ImportExportDrawer
+        isOpen={showImportDrawer}
+        onClose={() => setShowImportDrawer(false)}
+        mode="import"
+        projectSlug={slug}
+        envSlug={envSlug}
+        onSuccess={fetchVariables}
+      />
+      <ImportExportDrawer
+        isOpen={showExportDrawer}
+        onClose={() => setShowExportDrawer(false)}
+        mode="export"
+        projectSlug={slug}
+        envSlug={envSlug}
+      />
     </div>
   );
 }

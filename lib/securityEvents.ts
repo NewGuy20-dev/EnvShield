@@ -10,12 +10,52 @@ export type SecurityEventType =
   | 'password_reset_success'
   | 'two_factor_disabled'
   | 'cli_token_created'
-  | 'new_session';
+  | 'new_session'
+  | 'oauth_unlinked';
 
 export interface SecurityAlertOptions {
   userId: string;
   type: SecurityEventType;
   metadata?: Record<string, any>;
+}
+
+const FAILED_LOGIN_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const FAILED_LOGIN_THRESHOLD = 3;
+const failedLoginAttempts = new Map<string, { count: number; windowStart: number }>();
+
+export async function recordFailedLoginAttempt({
+  userId,
+  identifier,
+}: {
+  userId?: string;
+  identifier: string;
+}) {
+  if (!userId) {
+    return;
+  }
+
+  const now = Date.now();
+  const attempt = failedLoginAttempts.get(userId);
+
+  if (!attempt || now - attempt.windowStart > FAILED_LOGIN_WINDOW_MS) {
+    failedLoginAttempts.set(userId, { count: 1, windowStart: now });
+    return;
+  }
+
+  const nextCount = attempt.count + 1;
+  failedLoginAttempts.set(userId, { count: nextCount, windowStart: attempt.windowStart });
+
+  if (nextCount >= FAILED_LOGIN_THRESHOLD) {
+    failedLoginAttempts.set(userId, { count: 0, windowStart: now });
+    await queueSecurityAlert({
+      userId,
+      type: 'failed_logins',
+      metadata: {
+        attempts: nextCount,
+        ip: identifier,
+      },
+    });
+  }
 }
 
 export async function queueSecurityAlert({ userId, type, metadata }: SecurityAlertOptions) {
@@ -74,6 +114,8 @@ function buildAlertDetails(type: SecurityEventType, metadata?: Record<string, an
       return `A new CLI token (${metadata?.tokenName || 'unnamed'}) was created from IP ${metadata?.ip || 'unknown'}.`;
     case 'new_session':
       return `A new device signed in: ${metadata?.userAgent || 'Unknown device'} from IP ${metadata?.ip || 'unknown'}.`;
+    case 'oauth_unlinked':
+      return `An OAuth account (${metadata?.provider || 'unknown provider'}) was unlinked from your EnvShield account from IP ${metadata?.ip || 'unknown'}.`;
     default:
       return 'Suspicious activity detected on your account.';
   }
@@ -93,6 +135,8 @@ function formatAlertType(type: SecurityEventType) {
       return 'New CLI Token Created';
     case 'new_session':
       return 'New Device Signed In';
+    case 'oauth_unlinked':
+      return 'OAuth Account Unlinked';
     default:
       return 'Security Alert';
   }

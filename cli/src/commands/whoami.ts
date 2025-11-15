@@ -1,10 +1,11 @@
 import { createApiClient, handleApiError } from '../utils/api';
-import { requireAuth } from '../utils/config';
+import { requireAuth, getActiveProfile } from '../utils/config';
 import { startSpinner, header, formatKeyValue } from '../utils/spinner';
 
 export async function whoamiCommand() {
   try {
-    requireAuth();
+    const config = requireAuth();
+    const activeProfile = getActiveProfile();
     
     const spinner = startSpinner('Fetching user info...');
     const api = createApiClient();
@@ -23,8 +24,18 @@ export async function whoamiCommand() {
       if (token) {
         console.log('');
         header('Token Information');
-        formatKeyValue('Name', token.name || '(not set)');
-        formatKeyValue('ID', token.id);
+        formatKeyValue('Profile', activeProfile || 'default');
+        formatKeyValue('Token Name', config.tokenName || token.name || '(not set)');
+        formatKeyValue('Token ID', token.id);
+        if (config.expiresAt) {
+          const expiresDate = new Date(config.expiresAt);
+          const daysUntilExpiry = Math.floor((expiresDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          formatKeyValue('Expires', `${expiresDate.toLocaleDateString()} (${daysUntilExpiry} days)`);
+        }
+        if (token.lastUsedAt) {
+          formatKeyValue('Last Used', new Date(token.lastUsedAt).toLocaleString());
+        }
+        formatKeyValue('API URL', config.apiUrl);
       }
     } catch (error) {
       spinner.fail('Failed to fetch user info');

@@ -9,7 +9,6 @@ export async function POST(req: NextRequest) {
 
     if (sessionToken) {
       await auth.api.signOut({
-        body: { token: sessionToken },
         headers: req.headers,
         request: req,
       });

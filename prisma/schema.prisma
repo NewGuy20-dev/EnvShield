@@ -37,8 +37,8 @@ model User {
 model ApiToken {
   id          String   @id @default(cuid())
   userId      String
-  token       String   @unique
-  tokenDigest String?  @unique
+  tokenDigest String   @unique @map("token_digest") // SHA-256 digest for fast lookup
+  tokenHash   String?  @map("token_hash") // Bcrypt hash for verification (legacy compatibility)
   name        String?
   lastUsedAt  DateTime?
   expiresAt   DateTime?
@@ -48,7 +48,7 @@ model ApiToken {
 
   @@map("api_tokens")
   @@index([userId])
-  @@index([token])
+  @@index([tokenDigest])
 }
 
 model Project {

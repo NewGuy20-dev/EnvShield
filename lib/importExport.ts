@@ -1,353 +1,406 @@
 /**
  * Import/Export Utilities
  * 
- * Handles importing and exporting variables in multiple formats:
- * - .env (KEY=VALUE)
- * - JSON ({"KEY": "VALUE"})
- * - YAML (KEY: VALUE)
- * - CSV (key,value,description)
- * - TOML (KEY = "value")
+ * Handles parsing and formatting of environment variables in multiple formats:
+ * - .env (dotenv)
+ * - JSON
+ * - YAML
  */
 
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { parse as parseCsv, unparse as unparseCsv } from 'papaparse';
+import prisma from './db';
+import { decryptFromStorage, encryptForStorage } from './encryption';
+import { logger } from './logger';
 
-export interface Variable {
+export type ImportFormat = 'dotenv' | 'json' | 'yaml';
+export type ConflictStrategy = 'overwrite' | 'skip' | 'merge';
+
+export interface ParsedVariable {
   key: string;
   value: string;
   description?: string;
 }
 
-export type ExportFormat = 'env' | 'json' | 'yaml' | 'csv' | 'toml';
+export interface ImportDiff {
+  added: ParsedVariable[];
+  updated: Array<{
+    key: string;
+    oldValue: string;
+    newValue: string;
+    description?: string;
+  }>;
+  unchanged: string[];
+}
+
+export interface ImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+}
 
 /**
- * Parse .env format
+ * Parse dotenv format (.env file)
+ * Supports:
+ * - KEY=value
+ * - KEY="value with spaces"
+ * - KEY='value with spaces'
+ * - # comments
+ * - Empty lines
  */
-export function parseEnvFormat(content: string): Variable[] {
-  const variables: Variable[] = [];
+export function parseEnvFile(content: string): Record<string, string> {
+  const result: Record<string, string> = {};
   const lines = content.split('\n');
 
-  let currentComment = '';
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    // Skip empty lines
-    if (!trimmed) {
-      currentComment = '';
+    // Skip empty lines and comments
+    if (!line || line.startsWith('#')) {
       continue;
     }
 
-    // Collect comments as descriptions
-    if (trimmed.startsWith('#')) {
-      currentComment = trimmed.slice(1).trim();
+    // Match KEY=VALUE pattern
+    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) {
       continue;
     }
 
-    // Parse KEY=VALUE
-    const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
-    if (match) {
-      const [, key, rawValue] = match;
-      
-      // Remove quotes if present
-      let value = rawValue.trim();
-      if ((value.startsWith('"') && value.endsWith('"')) ||
-          (value.startsWith("'") && value.endsWith("'"))) {
-        value = value.slice(1, -1);
-      }
+    const key = match[1];
+    let value = match[2].trim();
 
-      variables.push({
-        key,
-        value,
-        description: currentComment || undefined,
-      });
-
-      currentComment = '';
+    // Handle quoted values
+    if ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
     }
+
+    // Handle escaped characters in double quotes
+    if (match[2].trim().startsWith('"')) {
+      value = value
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t')
+        .replace(/\\\\/g, '\\')
+        .replace(/\\"/g, '"');
+    }
+
+    result[key] = value;
   }
 
-  return variables;
+  return result;
 }
 
 /**
  * Parse JSON format
+ * Supports:
+ * - Flat object: { "KEY": "value" }
+ * - Nested object (flattened with dot notation)
  */
-export function parseJsonFormat(content: string): Variable[] {
-  const data = JSON.parse(content);
-  
-  if (Array.isArray(data)) {
-    return data.map(item => ({
-      key: item.key,
-      value: item.value,
-      description: item.description,
-    }));
-  }
+export function parseJsonFile(content: string): Record<string, string> {
+  try {
+    const parsed = JSON.parse(content);
+    
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('JSON must be an object');
+    }
 
-  return Object.entries(data).map(([key, value]) => ({
-    key,
-    value: String(value),
-  }));
+    return flattenObject(parsed);
+  } catch (error) {
+    throw new Error(`Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 /**
  * Parse YAML format
+ * Supports:
+ * - Flat structure: KEY: value
+ * - Nested structure (flattened with dot notation)
  */
-export function parseYamlFormat(content: string): Variable[] {
-  const data = parseYaml(content);
-  
-  return Object.entries(data).map(([key, value]) => ({
-    key,
-    value: String(value),
-  }));
+export function parseYamlFile(content: string): Record<string, string> {
+  try {
+    const parsed = parseYaml(content);
+    
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('YAML must be an object');
+    }
+
+    return flattenObject(parsed);
+  } catch (error) {
+    throw new Error(`Invalid YAML: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 /**
- * Parse CSV format
+ * Flatten nested object to dot notation
+ * Example: { db: { host: "localhost" } } => { "db.host": "localhost" }
  */
-export function parseCsvFormat(content: string): Variable[] {
-  const { data } = parseCsv<string[]>(content, {
-    header: false,
-    skipEmptyLines: true,
+function flattenObject(
+  obj: Record<string, unknown>,
+  prefix = '',
+  result: Record<string, string> = {}
+): Record<string, string> {
+  for (const [key, value] of Object.entries(obj)) {
+    const newKey = prefix ? `${prefix}.${key}` : key;
+
+    if (value === null || value === undefined) {
+      result[newKey] = '';
+    } else if (typeof value === 'object' && !Array.isArray(value)) {
+      flattenObject(value as Record<string, unknown>, newKey, result);
+    } else {
+      result[newKey] = String(value);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Unflatten dot notation to nested object
+ * Example: { "db.host": "localhost" } => { db: { host: "localhost" } }
+ */
+function unflattenObject(flat: Record<string, string>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(flat)) {
+    const parts = key.split('.');
+    let current = result;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!(part in current)) {
+        current[part] = {};
+      }
+      current = current[part] as Record<string, unknown>;
+    }
+
+    current[parts[parts.length - 1]] = value;
+  }
+
+  return result;
+}
+
+/**
+ * Format variables as dotenv
+ */
+export function formatAsDotenv(variables: Record<string, string>): string {
+  const lines: string[] = [];
+
+  for (const [key, value] of Object.entries(variables)) {
+    // Quote values that contain spaces or special characters
+    const needsQuotes = /[\s#"'$]/.test(value);
+    const escapedValue = needsQuotes
+      ? `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`
+      : value;
+
+    lines.push(`${key}=${escapedValue}`);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Format variables as JSON
+ */
+export function formatAsJson(variables: Record<string, string>, pretty = true): string {
+  // Attempt to unflatten for better structure
+  const structured = unflattenObject(variables);
+  return JSON.stringify(structured, null, pretty ? 2 : 0);
+}
+
+/**
+ * Format variables as YAML
+ */
+export function formatAsYaml(variables: Record<string, string>): string {
+  // Attempt to unflatten for better structure
+  const structured = unflattenObject(variables);
+  return stringifyYaml(structured);
+}
+
+/**
+ * Generate diff between existing and imported variables
+ */
+export async function generateDiff(
+  environmentId: string,
+  imported: Record<string, string>
+): Promise<ImportDiff> {
+  // Fetch existing variables
+  const existing = await prisma.variable.findMany({
+    where: { environmentId },
+    select: { key: true, value: true, description: true },
   });
 
-  // Skip header row if present
-  const startIndex = data[0][0].toLowerCase() === 'key' ? 1 : 0;
+  const existingMap = new Map<string, { value: string; description?: string }>();
+  for (const v of existing) {
+    const decrypted = decryptFromStorage(v.value);
+    existingMap.set(v.key, { value: decrypted, description: v.description || undefined });
+  }
 
-  return data.slice(startIndex).map(row => ({
-    key: row[0],
-    value: row[1] || '',
-    description: row[2] || undefined,
-  }));
-}
+  const added: ParsedVariable[] = [];
+  const updated: ImportDiff['updated'] = [];
+  const unchanged: string[] = [];
 
-/**
- * Parse TOML format
- */
-export function parseTomlFormat(content: string): Variable[] {
-  const variables: Variable[] = [];
-  const lines = content.split('\n');
+  for (const [key, newValue] of Object.entries(imported)) {
+    const existingVar = existingMap.get(key);
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue;
-    }
-
-    // Parse KEY = "value"
-    const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*["'](.*)["']$/);
-    if (match) {
-      const [, key, value] = match;
-      variables.push({ key, value });
+    if (!existingVar) {
+      added.push({ key, value: newValue });
+    } else if (existingVar.value !== newValue) {
+      updated.push({
+        key,
+        oldValue: existingVar.value,
+        newValue,
+        description: existingVar.description,
+      });
+    } else {
+      unchanged.push(key);
     }
   }
 
-  return variables;
+  return { added, updated, unchanged };
 }
 
 /**
- * Export to .env format
+ * Apply import to database with conflict resolution
  */
-export function exportToEnvFormat(variables: Variable[]): string {
-  return variables
-    .map(v => {
-      const lines: string[] = [];
-      
-      if (v.description) {
-        lines.push(`# ${v.description}`);
+export async function applyImport(
+  environmentId: string,
+  imported: Record<string, string>,
+  strategy: ConflictStrategy,
+  userId: string
+): Promise<ImportResult> {
+  const result: ImportResult = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: [],
+  };
+
+  const diff = await generateDiff(environmentId, imported);
+
+  try {
+    // Handle new variables (always create)
+    for (const { key, value } of diff.added) {
+      try {
+        const encrypted = encryptForStorage(value);
+        await prisma.variable.create({
+          data: {
+            environmentId,
+            key,
+            value: encrypted,
+          },
+        });
+
+        // Create history entry
+        await prisma.variableHistory.create({
+          data: {
+            variableId: (await prisma.variable.findFirst({
+              where: { environmentId, key },
+              select: { id: true },
+            }))!.id,
+            key,
+            value: encrypted,
+            changedBy: userId,
+          },
+        });
+
+        result.created++;
+      } catch (error) {
+        result.errors.push(`Failed to create ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
-      
-      // Quote value if it contains spaces or special characters
-      const needsQuotes = /[\s#$]/.test(v.value);
-      const value = needsQuotes ? `"${v.value}"` : v.value;
-      lines.push(`${v.key}=${value}`);
-      
-      return lines.join('\n');
-    })
-    .join('\n\n');
+    }
+
+    // Handle updates based on strategy
+    for (const { key, newValue } of diff.updated) {
+      if (strategy === 'skip') {
+        result.skipped++;
+        continue;
+      }
+
+      if (strategy === 'overwrite' || strategy === 'merge') {
+        try {
+          const encrypted = encryptForStorage(newValue);
+          const variable = await prisma.variable.findFirst({
+            where: { environmentId, key },
+            select: { id: true },
+          });
+
+          if (!variable) {
+            result.errors.push(`Variable ${key} not found for update`);
+            continue;
+          }
+
+          await prisma.variable.update({
+            where: { id: variable.id },
+            data: { value: encrypted, updatedAt: new Date() },
+          });
+
+          // Create history entry
+          await prisma.variableHistory.create({
+            data: {
+              variableId: variable.id,
+              key,
+              value: encrypted,
+              changedBy: userId,
+            },
+          });
+
+          result.updated++;
+        } catch (error) {
+          result.errors.push(`Failed to update ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+    }
+  } catch (error) {
+    logger.error({ error, environmentId }, 'Import failed');
+    throw error;
+  }
+
+  return result;
 }
 
 /**
- * Export to JSON format
+ * Export variables from environment
  */
-export function exportToJsonFormat(variables: Variable[], pretty: boolean = true): string {
-  const data = variables.reduce((acc, v) => {
-    acc[v.key] = v.value;
-    return acc;
-  }, {} as Record<string, string>);
-
-  return JSON.stringify(data, null, pretty ? 2 : 0);
-}
-
-/**
- * Export to YAML format
- */
-export function exportToYamlFormat(variables: Variable[]): string {
-  const data = variables.reduce((acc, v) => {
-    acc[v.key] = v.value;
-    return acc;
-  }, {} as Record<string, string>);
-
-  return stringifyYaml(data);
-}
-
-/**
- * Export to CSV format
- */
-export function exportToCsvFormat(variables: Variable[]): string {
-  const data = variables.map(v => ({
-    key: v.key,
-    value: v.value,
-    description: v.description || '',
-  }));
-
-  return unparseCsv(data, {
-    header: true,
+export async function exportVariables(
+  environmentId: string,
+  format: ImportFormat
+): Promise<string> {
+  const variables = await prisma.variable.findMany({
+    where: { environmentId },
+    select: { key: true, value: true },
+    orderBy: { key: 'asc' },
   });
-}
 
-/**
- * Export to TOML format
- */
-export function exportToTomlFormat(variables: Variable[]): string {
-  return variables
-    .map(v => {
-      const lines: string[] = [];
-      
-      if (v.description) {
-        lines.push(`# ${v.description}`);
-      }
-      
-      lines.push(`${v.key} = "${v.value}"`);
-      
-      return lines.join('\n');
-    })
-    .join('\n\n');
-}
-
-/**
- * Auto-detect format from content
- */
-export function detectFormat(content: string): ExportFormat | null {
-  const trimmed = content.trim();
-
-  // JSON
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      JSON.parse(content);
-      return 'json';
-    } catch {
-      // Not valid JSON
-    }
+  const decrypted: Record<string, string> = {};
+  for (const v of variables) {
+    decrypted[v.key] = decryptFromStorage(v.value);
   }
 
-  // YAML (starts with key:)
-  if (/^[a-zA-Z_][a-zA-Z0-9_]*:\s*.+/m.test(trimmed)) {
-    return 'yaml';
-  }
-
-  // CSV (has header row)
-  if (trimmed.startsWith('key,value') || trimmed.includes(',')) {
-    return 'csv';
-  }
-
-  // TOML (has KEY = "value")
-  if (/^[A-Z_][A-Z0-9_]*\s*=\s*["'].+["']/m.test(trimmed)) {
-    return 'toml';
-  }
-
-  // .env (has KEY=VALUE)
-  if (/^[A-Z_][A-Z0-9_]*=.+/m.test(trimmed)) {
-    return 'env';
-  }
-
-  return null;
-}
-
-/**
- * Import variables from any format
- */
-export function importVariables(content: string, format?: ExportFormat): Variable[] {
-  const detectedFormat = format || detectFormat(content);
-
-  if (!detectedFormat) {
-    throw new Error('Could not detect format. Please specify format explicitly.');
-  }
-
-  switch (detectedFormat) {
-    case 'env':
-      return parseEnvFormat(content);
-    case 'json':
-      return parseJsonFormat(content);
-    case 'yaml':
-      return parseYamlFormat(content);
-    case 'csv':
-      return parseCsvFormat(content);
-    case 'toml':
-      return parseTomlFormat(content);
-    default:
-      throw new Error(`Unsupported format: ${detectedFormat}`);
-  }
-}
-
-/**
- * Export variables to any format
- */
-export function exportVariables(variables: Variable[], format: ExportFormat): string {
   switch (format) {
-    case 'env':
-      return exportToEnvFormat(variables);
+    case 'dotenv':
+      return formatAsDotenv(decrypted);
     case 'json':
-      return exportToJsonFormat(variables);
+      return formatAsJson(decrypted);
     case 'yaml':
-      return exportToYamlFormat(variables);
-    case 'csv':
-      return exportToCsvFormat(variables);
-    case 'toml':
-      return exportToTomlFormat(variables);
+      return formatAsYaml(decrypted);
     default:
       throw new Error(`Unsupported format: ${format}`);
   }
 }
 
 /**
- * Detect conflicts between imported and existing variables
+ * Parse file content based on format
  */
-export function detectConflicts(
-  imported: Variable[],
-  existing: Variable[]
-): {
-  toCreate: Variable[];
-  toUpdate: Variable[];
-  conflicts: Array<{
-    key: string;
-    importedValue: string;
-    existingValue: string;
-  }>;
-} {
-  const existingMap = new Map(existing.map(v => [v.key, v]));
-  const toCreate: Variable[] = [];
-  const toUpdate: Variable[] = [];
-  const conflicts: Array<{
-    key: string;
-    importedValue: string;
-    existingValue: string;
-  }> = [];
-
-  for (const variable of imported) {
-    const existingVar = existingMap.get(variable.key);
-
-    if (!existingVar) {
-      toCreate.push(variable);
-    } else if (existingVar.value !== variable.value) {
-      toUpdate.push(variable);
-      conflicts.push({
-        key: variable.key,
-        importedValue: variable.value,
-        existingValue: existingVar.value,
-      });
-    }
+export function parseFile(content: string, format: ImportFormat): Record<string, string> {
+  switch (format) {
+    case 'dotenv':
+      return parseEnvFile(content);
+    case 'json':
+      return parseJsonFile(content);
+    case 'yaml':
+      return parseYamlFile(content);
+    default:
+      throw new Error(`Unsupported format: ${format}`);
   }
-
-  return { toCreate, toUpdate, conflicts };
 }

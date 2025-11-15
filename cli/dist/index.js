@@ -12,6 +12,12 @@ const init_1 = require("./commands/init");
 const pull_1 = require("./commands/pull");
 const push_1 = require("./commands/push");
 const view_1 = require("./commands/view");
+const profile_1 = require("./commands/profile");
+const import_1 = require("./commands/import");
+const export_1 = require("./commands/export");
+const search_1 = require("./commands/search");
+const completion_1 = require("./commands/completion");
+const bulk_1 = require("./commands/bulk");
 const packageJson = JSON.parse((0, fs_1.readFileSync)((0, path_1.join)(__dirname, '../package.json'), 'utf-8'));
 const program = new commander_1.Command();
 program
@@ -19,10 +25,9 @@ program
     .version(packageJson.version)
     .description('🛡️  EnvShield - Secure Environment Variable Manager');
 // Login command
-program
-    .command('login')
-    .description('Authenticate with EnvShield')
-    .action(login_1.loginCommand);
+(0, login_1.registerLoginCommand)(program);
+// Profile management command
+(0, profile_1.registerProfileCommand)(program);
 // Logout command
 program
     .command('logout')
@@ -65,6 +70,15 @@ program
     .option('--reveal', 'Show full values instead of masked')
     .option('--filter <text>', 'Filter variables by key or description')
     .action(view_1.viewCommand);
+// Import/Export commands
+program.addCommand(import_1.importCommand);
+program.addCommand(export_1.exportCommand);
+// Search command
+program.addCommand(search_1.searchCommand);
+// Bulk operations
+program.addCommand(bulk_1.bulkCommand);
+// Shell completion
+program.addCommand(completion_1.completionCommand);
 // Display help if no command is provided
 if (!process.argv.slice(2).length) {
     program.outputHelp();

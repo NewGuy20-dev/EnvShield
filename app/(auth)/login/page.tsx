@@ -77,13 +77,18 @@ export default function LoginPage() {
             <div className="flex items-center justify-center gap-2 mb-6">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/10 animate-glow-pulse">
                 <Shield className="w-8 h-8 text-primary" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark mb-2">
+              Welcome back
+            </h1>
             <p className="text-text-secondary-light dark:text-text-secondary-dark text-base">
               Sign in to your EnvShield account
             </p>
           </div>
 
-        {!twoFactorRequired ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {!twoFactorRequired ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="p-3 rounded-lg bg-error/10 border border-error/20 text-error text-sm animate-shake">
                 {error}
@@ -139,11 +144,6 @@ export default function LoginPage() {
           </form>
         ) : (
           <div className="space-y-4">
-            {challengeError && (
-              <div className="p-3 rounded-lg bg-error/10 border border-error/20 text-error text-sm">
-                {challengeError}
-              </div>
-            )}
             {pendingSessionToken && (
               <TwoFactorChallengeForm
                 pendingSessionToken={pendingSessionToken}
@@ -156,7 +156,6 @@ export default function LoginPage() {
               onClick={() => {
                 setTwoFactorRequired(false);
                 setPendingSessionToken(null);
-                setChallengeError(null);
               }}
             >
               Use a different account
@@ -176,7 +175,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-text-secondary-light dark:text-text-secondary-dark mt-6">
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
           <Link href="/register">
             <span className="text-primary font-medium hover:text-primary/80 transition-colors">
               Sign up

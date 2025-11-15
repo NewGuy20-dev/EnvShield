@@ -6,6 +6,7 @@ import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
 import { applyRateLimit, authLimiter, getClientIdentifier } from "@/lib/rateLimit";
 import { MAX_API_TOKENS_PER_USER } from "@/lib/constants";
 import { logError } from "@/lib/logger";
+import { queueSecurityAlert } from "@/lib/securityEvents";
 
 export async function GET(req: NextRequest) {
   try {
@@ -86,10 +87,19 @@ export async function POST(req: NextRequest) {
     const token = await prisma.apiToken.create({
       data: {
         userId,
-        token: tokenHash,
+        tokenHash,
         tokenDigest,
         name: tokenName,
         expiresAt,
+      },
+    });
+
+    await queueSecurityAlert({
+      userId,
+      type: "cli_token_created",
+      metadata: {
+        tokenName,
+        ip: identifier,
       },
     });
 

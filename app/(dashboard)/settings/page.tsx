@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/shared/loading-spinner";
 import { TwoFactorSettingsPanel } from "@/components/settings/TwoFactorSettingsPanel";
+import { ConnectedAccountsSection } from "@/components/settings/ConnectedAccountsSection";
 
 interface ApiToken {
   id: string;
@@ -293,7 +294,12 @@ export default function SettingsPage() {
             </div>
 
             {twoFactorState ? (
-              <TwoFactorSettingsPanel initialState={twoFactorState} />
+              <>
+                <TwoFactorSettingsPanel initialState={twoFactorState} />
+                <div className="mt-8">
+                  <ConnectedAccountsSection />
+                </div>
+              </>
             ) : (
               <div className="py-12 flex justify-center">
                 <LoadingSpinner />

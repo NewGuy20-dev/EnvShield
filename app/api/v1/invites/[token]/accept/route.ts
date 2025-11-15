@@ -2,34 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUserFromRequest } from "@/lib/authMiddleware";
 import { handleApiError, AuthError } from "@/lib/errors";
 import { logger, logSecurityEvent } from "@/lib/logger";
-import prisma from "@/lib/db";
 import { getClientIdentifier } from "@/lib/rateLimit";
+import {
+  acceptInviteForUser,
+  clearPendingInviteCookie,
+  findInviteByToken,
+  setPendingInviteCookie,
+} from "@/lib/projectInvites";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: { token: string } }
 ) {
   try {
+    const identifier = getClientIdentifier(req);
+
+    const invite = await findInviteByToken(params.token);
+
+    if (!invite) {
+      throw new AuthError("Invalid or expired invite");
+    }
+
     // Authenticate user
     const auth = await getAuthenticatedUserFromRequest(req);
     if (!auth) {
-      throw new AuthError("Unauthorized");
-    }
-
-    const identifier = getClientIdentifier(req);
-
-    // Find the invite
-    const invite = await prisma.projectInvite.findUnique({
-      where: { token: params.token },
-      include: { project: true },
-    });
-
-    if (!invite) {
-      logSecurityEvent("invite_accept_invalid_token", "low", {
-        userId: auth.user.id,
-        ip: identifier,
-      });
-      throw new AuthError("Invalid or expired invite");
+      const redirectUrl = new URL(`/register?invite=${params.token}`, req.url);
+      const response = NextResponse.redirect(redirectUrl);
+      setPendingInviteCookie(response, params.token);
+      return response;
     }
 
     // Check if invite has expired
@@ -48,56 +48,25 @@ export async function POST(
       throw new AuthError("This invite is for a different email address");
     }
 
-    // Check if user is already a member
-    const existingMember = await prisma.projectMember.findUnique({
-      where: {
-        projectId_userId: {
-          projectId: invite.projectId,
-          userId: auth.user.id,
-        },
-      },
-    });
-
-    if (existingMember) {
-      throw new AuthError("You are already a member of this project");
-    }
-
-    // Add user to project
-    const projectMember = await prisma.projectMember.create({
-      data: {
-        projectId: invite.projectId,
-        userId: auth.user.id,
-        role: invite.role,
-      },
-    });
-
-    // Delete the invite
-    await prisma.projectInvite.delete({
-      where: { id: invite.id },
-    });
-
-    logSecurityEvent("invite_accepted", "low", {
+    const { project, member } = await acceptInviteForUser({
+      invite,
       userId: auth.user.id,
-      projectId: invite.projectId,
-      role: invite.role,
+      userEmail: auth.user.email,
       ip: identifier,
     });
 
-    logger.info(
-      { userId: auth.user.id, projectId: invite.projectId, role: invite.role },
-      "Project invite accepted"
-    );
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       status: "success",
       message: "Invite accepted successfully",
       project: {
-        id: invite.project.id,
-        name: invite.project.name,
-        slug: invite.project.slug,
+        id: project.id,
+        name: project.name,
+        slug: project.slug,
       },
-      role: projectMember.role,
+      role: member.role,
     });
+    clearPendingInviteCookie(response);
+    return response;
   } catch (error) {
     return handleApiError(error);
   }
