@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { signIn } from "@/lib/auth-client";
 
-export function OAuthButtons() {
+interface OAuthButtonsProps {
+  redirectPath?: string;
+}
+
+export function OAuthButtons({ redirectPath }: OAuthButtonsProps) {
   const [isLoading, setIsLoading] = useState<string | null>(null);
 
   const handleOAuthSignIn = async (provider: 'google' | 'github') => {
@@ -11,7 +15,7 @@ export function OAuthButtons() {
       setIsLoading(provider);
       await signIn.social({
         provider,
-        callbackURL: '/', // Redirect to homepage (dashboard route group)
+        callbackURL: redirectPath || '/', // Allow callers (e.g. CLI login) to control redirect target
       });
     } catch (error) {
       console.error(`${provider} sign-in failed:`, error);

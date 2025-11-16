@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Shield, Mail, Lock, ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,9 @@ import { AnimatedBackground } from "@/components/shared/animated-background";
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
 import { TwoFactorChallengeForm } from "@/components/auth/TwoFactorChallengeForm";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -21,6 +22,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [pendingSessionToken, setPendingSessionToken] = useState<string | null>(null);
   const [twoFactorRequired, setTwoFactorRequired] = useState(false);
+
+  const redirect = searchParams.get("redirect");
+  const code = searchParams.get("code");
+  const targetPath = redirect
+    ? `${redirect}${code ? `?code=${encodeURIComponent(code)}` : ""}`
+    : "/";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +56,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/");
+      router.push(targetPath);
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Invalid input");
     } finally {
@@ -58,7 +65,7 @@ export default function LoginPage() {
   };
 
   const handleChallengeSuccess = () => {
-    router.push("/");
+    router.push(targetPath);
   };
 
   return (
@@ -171,7 +178,7 @@ export default function LoginPage() {
         </div>
 
         {/* Social Login */}
-        <OAuthButtons />
+        <OAuthButtons redirectPath={targetPath} />
 
         {/* Footer */}
         <p className="text-center text-sm text-text-secondary-light dark:text-text-secondary-dark mt-6">
@@ -199,5 +206,29 @@ export default function LoginPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="w-full max-w-md animate-fade-in relative z-10">
+        <AnimatedBackground />
+        <Card className="p-10">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/10 animate-pulse">
+                <Shield className="w-8 h-8 text-primary" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-text-primary-light dark:text-text-primary-dark mb-2">
+              Loading...
+            </h1>
+          </div>
+        </Card>
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
   );
 }

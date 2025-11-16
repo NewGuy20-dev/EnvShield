@@ -30,6 +30,7 @@ model User {
   securityAlerts SecurityAlert[]
   accounts      Account[]       // OAuth accounts
   sessions      Session[]       // Better Auth sessions
+  cliDeviceSessions CliDeviceSession[]
 
   @@map("users")
 }
@@ -45,6 +46,7 @@ model ApiToken {
   createdAt   DateTime @default(now())
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cliDeviceSessions CliDeviceSession[]
 
   @@map("api_tokens")
   @@index([userId])
@@ -246,5 +248,30 @@ model Verification {
   updatedAt  DateTime @updatedAt
 
   @@map("verification")
+}
+
+model CliDeviceSession {
+  id             String   @id @default(cuid())
+  deviceCode     String   @unique
+  userCode       String?
+  status         String
+  userId         String?
+  tokenId        String?
+  tokenName      String?
+  encryptedToken String?  @db.Text
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+  approvedAt     DateTime?
+  consumedAt     DateTime?
+  clientIp       String?
+  userAgent      String?
+
+  user  User?     @relation(fields: [userId], references: [id])
+  token ApiToken? @relation(fields: [tokenId], references: [id])
+
+  @@map("cli_device_sessions")
+  @@index([deviceCode])
+  @@index([status])
+  @@index([expiresAt])
 }
 
