@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Key, Shield, ShieldAlert, Trash2, Copy, Plus } from "lucide-react";
+import { User, Key, Shield, ShieldAlert, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { LoadingSpinner } from "@/components/shared/loading-spinner";
+import { LoadingSpinner } from "@/components/ui/loading";
+import { PageHeader } from "@/components/ui/page-header";
+import { CopyButton } from "@/components/ui/copy-button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useToast } from "@/components/ui/toast";
 import { TwoFactorSettingsPanel } from "@/components/settings/TwoFactorSettingsPanel";
 import { ConnectedAccountsSection } from "@/components/settings/ConnectedAccountsSection";
 
@@ -22,11 +26,11 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [tokensLoading, setTokensLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [tokens, setTokens] = useState<ApiToken[]>([]);
   const [newTokenName, setNewTokenName] = useState("");
   const [createdToken, setCreatedToken] = useState<string | null>(null);
-  
+  const { addToast } = useToast();
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -55,6 +59,11 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error("Failed to fetch profile:", error);
+      addToast({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to fetch profile data',
+      });
     } finally {
       setProfileLoading(false);
     }
@@ -70,6 +79,11 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error("Failed to fetch tokens:", error);
+      addToast({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to fetch API tokens',
+      });
     } finally {
       setTokensLoading(false);
     }
@@ -77,7 +91,6 @@ export default function SettingsPage() {
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(null);
     setLoading(true);
 
     try {
@@ -93,17 +106,29 @@ export default function SettingsPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Profile updated successfully!' });
+        addToast({
+          type: 'success',
+          title: 'Profile Updated',
+          message: 'Your profile information has been updated successfully.',
+        });
         setFormData({
           ...formData,
           name: data.user.name || "",
           email: data.user.email || "",
         });
       } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to update profile' });
+        addToast({
+          type: 'error',
+          title: 'Update Failed',
+          message: data.message || 'Failed to update profile',
+        });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to update profile. Please try again.' });
+      addToast({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to update profile. Please try again.',
+      });
     } finally {
       setLoading(false);
     }
@@ -111,13 +136,16 @@ export default function SettingsPage() {
 
   const handleCreateToken = async () => {
     if (!newTokenName.trim()) {
-      setMessage({ type: 'error', text: 'Token name is required' });
+      addToast({
+        type: 'error',
+        title: 'Validation Error',
+        message: 'Token name is required',
+      });
       return;
     }
 
     try {
       setLoading(true);
-      setMessage(null);
       const response = await fetch("/api/v1/tokens", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -130,11 +158,24 @@ export default function SettingsPage() {
         setCreatedToken(data.token);
         setNewTokenName("");
         fetchTokens();
+        addToast({
+          type: 'success',
+          title: 'Token Created',
+          message: 'API token created successfully. Make sure to copy it now.',
+        });
       } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to create token' });
+        addToast({
+          type: 'error',
+          title: 'Creation Failed',
+          message: data.message || 'Failed to create token',
+        });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to create token. Please try again.' });
+      addToast({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to create token. Please try again.',
+      });
     } finally {
       setLoading(false);
     }
@@ -146,7 +187,6 @@ export default function SettingsPage() {
     }
 
     try {
-      console.log('[Frontend] Revoking token:', tokenId);
       const response = await fetch(`/api/v1/tokens/${tokenId}`, {
         method: "DELETE",
         headers: {
@@ -154,25 +194,28 @@ export default function SettingsPage() {
         },
       });
 
-      console.log('[Frontend] Response status:', response.status);
-
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Token revoked successfully' });
+        addToast({
+          type: 'success',
+          title: 'Token Revoked',
+          message: 'The API token has been revoked successfully.',
+        });
         fetchTokens();
       } else {
         const data = await response.json();
-        console.error('[Frontend] Error response:', data);
-        setMessage({ type: 'error', text: data.message || 'Failed to revoke token' });
+        addToast({
+          type: 'error',
+          title: 'Revocation Failed',
+          message: data.message || 'Failed to revoke token',
+        });
       }
     } catch (error) {
-      console.error('[Frontend] Fetch error:', error);
-      setMessage({ type: 'error', text: 'Failed to revoke token. Please try again.' });
+      addToast({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to revoke token. Please try again.',
+      });
     }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setMessage({ type: 'success', text: 'Token copied to clipboard!' });
   };
 
   const [twoFactorState, setTwoFactorState] = useState<{ enabled: boolean; pending: boolean; updatedAt?: string | null } | null>(null);
@@ -199,19 +242,15 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto">
+    <div className="p-6 md:p-8 max-w-4xl mx-auto animate-fade-in">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-text-primary-light dark:text-text-primary-dark mb-2">
-          Settings
-        </h1>
-        <p className="text-text-secondary-light dark:text-text-secondary-dark">
-          Manage your account settings and preferences
-        </p>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Manage your account settings and preferences"
+      />
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-8 border-b border-glass-light-border dark:border-glass-dark-border">
+      <div className="flex gap-2 mb-8 border-b border-glass-light-border dark:border-glass-dark-border overflow-x-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -219,11 +258,10 @@ export default function SettingsPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-3 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${
-                isActive
+              className={`px-4 py-3 font-medium text-sm flex items-center gap-2 border-b-2 transition-all duration-200 whitespace-nowrap ${isActive
                   ? "border-primary text-primary"
-                  : "border-transparent text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light dark:hover:text-text-primary-dark"
-              }`}
+                  : "border-transparent text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light dark:hover:text-text-primary-dark hover:bg-glass-light/50 dark:hover:bg-glass-dark/50 rounded-t-lg"
+                }`}
             >
               <Icon className="w-4 h-4" />
               {tab.label}
@@ -232,19 +270,8 @@ export default function SettingsPage() {
         })}
       </div>
 
-      {/* Success/Error Messages */}
-      {message && (
-        <div className={`mb-6 p-4 rounded-lg border ${
-          message.type === 'success' 
-            ? 'bg-success/10 border-success/20 text-success' 
-            : 'bg-danger/10 border-danger/20 text-danger'
-        }`}>
-          <p className="text-sm font-medium">{message.text}</p>
-        </div>
-      )}
-
       {/* Content */}
-      <Card className="p-8">
+      <Card className="p-8 animate-slide-up">
         {activeTab === "profile" && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
@@ -252,7 +279,7 @@ export default function SettingsPage() {
             </h2>
             {profileLoading ? (
               <div className="flex justify-center py-8">
-                <LoadingSpinner />
+                <LoadingSpinner size="lg" />
               </div>
             ) : (
               <form onSubmit={handleProfileUpdate} className="space-y-6">
@@ -302,7 +329,7 @@ export default function SettingsPage() {
               </>
             ) : (
               <div className="py-12 flex justify-center">
-                <LoadingSpinner />
+                <LoadingSpinner size="lg" />
               </div>
             )}
           </div>
@@ -351,7 +378,7 @@ export default function SettingsPage() {
 
             {/* Display Created Token */}
             {createdToken && (
-              <div className="p-6 bg-primary/10 rounded-lg border border-primary/20">
+              <div className="p-6 bg-primary/10 rounded-lg border border-primary/20 animate-scale-in">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h3 className="font-semibold text-text-primary-light dark:text-text-primary-dark mb-1">
@@ -361,16 +388,9 @@ export default function SettingsPage() {
                       Make sure to copy your token now. You won't be able to see it again!
                     </p>
                   </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Copy className="w-4 h-4" />}
-                    onClick={() => copyToClipboard(createdToken)}
-                  >
-                    Copy
-                  </Button>
+                  <CopyButton text={createdToken} variant="button" />
                 </div>
-                <code className="block p-3 bg-glass-dark/50 rounded text-sm font-mono break-all">
+                <code className="block p-3 bg-glass-dark/50 rounded text-sm font-mono break-all text-white">
                   {createdToken}
                 </code>
               </div>
@@ -386,17 +406,17 @@ export default function SettingsPage() {
                   <LoadingSpinner />
                 </div>
               ) : tokens.length === 0 ? (
-                <div className="text-center py-8 text-text-secondary-light dark:text-text-secondary-dark">
-                  <Key className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No active tokens</p>
-                  <p className="text-sm mt-1">Create a token to use the CLI</p>
-                </div>
+                <EmptyState
+                  icon={<Key className="w-12 h-12" />}
+                  title="No active tokens"
+                  description="Create a token to use the EnvShield CLI"
+                />
               ) : (
                 <div className="space-y-3">
                   {tokens.map((token) => (
                     <div
                       key={token.id}
-                      className="flex items-center justify-between p-4 bg-glass-light dark:bg-glass-dark rounded-lg border border-glass-light-border dark:border-glass-dark-border"
+                      className="flex items-center justify-between p-4 bg-glass-light dark:bg-glass-dark rounded-lg border border-glass-light-border dark:border-glass-dark-border hover:border-primary/30 transition-colors"
                     >
                       <div className="flex-1">
                         <h4 className="font-medium text-text-primary-light dark:text-text-primary-dark">

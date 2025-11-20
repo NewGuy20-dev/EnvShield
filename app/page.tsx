@@ -4,12 +4,15 @@ import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { useEffect, useCallback } from "react";
-import { Shield, Lock, Users, GitBranch, Terminal, Zap, ArrowRight, Sparkles } from "lucide-react";
+import { Shield, Lock, Users, GitBranch, Terminal, Zap, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AnimatedThemeToggler } from "@/registry/magicui/animated-theme-toggler";
-import { AnimatedBackground } from "@/components/shared/animated-background";
 import { LoadingSpinner } from "@/components/shared/loading-spinner";
+import { HeroSection } from "@/components/landing/hero-section";
+import { LogoMarquee } from "@/components/landing/logo-marquee";
+import { HowItWorks } from "@/components/landing/how-it-works";
+import { SocialProof } from "@/components/landing/social-proof";
 
 export default function Home() {
   const { data: session, isPending } = useSession();
@@ -57,8 +60,6 @@ export default function Home() {
   }
   return (
     <div className="min-h-screen relative">
-      <AnimatedBackground />
-      
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-glass-light-border dark:border-glass-dark-border backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -86,82 +87,11 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-36 pb-24 px-4 overflow-hidden">
-        <div className="max-w-7xl mx-auto relative">
-          <div className="text-center">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass border border-primary/20 mb-8 animate-fade-in">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
-                Military-grade encryption for your secrets
-              </span>
-            </div>
-            
-            {/* Headline */}
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold text-text-primary-light dark:text-text-primary-dark mb-8 animate-slide-up tracking-tight leading-tight">
-              Shield your secrets,
-              <br />
-              <span className="text-gradient-primary inline-flex items-center gap-3">
-                empower your team
-                <Shield className="w-12 h-12 lg:w-16 lg:h-16 text-primary inline-block animate-float" />
-              </span>
-            </h1>
-            
-            {/* Subtitle */}
-            <p className="text-lg sm:text-xl lg:text-2xl text-text-secondary-light dark:text-text-secondary-dark max-w-4xl mx-auto mb-12 animate-slide-up animation-delay-100 leading-relaxed">
-              Securely store, share, and manage environment variables across teams and environments. 
-              <span className="text-text-primary-light dark:text-text-primary-dark font-semibold"> Git-like CLI workflow</span> with military-grade encryption.
-            </p>
-            
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 animate-slide-up animation-delay-200">
-              <Link href="/register">
-                <Button variant="primary" size="lg" icon={<ArrowRight className="w-5 h-5" />}>
-                  Start Free Trial
-                </Button>
-              </Link>
-              <Link href="https://github.com/envshield/envshield" target="_blank">
-                <Button variant="secondary" size="lg" icon={<GitBranch className="w-5 h-5" />}>
-                  View on GitHub
-                </Button>
-              </Link>
-            </div>
+      {/* New Hero Section with Spotlight Background */}
+      <HeroSection />
 
-            {/* CLI Preview */}
-            <Card className="max-w-4xl mx-auto p-8 font-mono text-sm lg:text-base animate-slide-up animation-delay-300 hover-lift">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-glass-light-border dark:border-glass-dark-border">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Terminal className="w-5 h-5 text-primary" />
-                </div>
-                <span className="text-text-primary-light dark:text-text-primary-dark font-semibold">Terminal</span>
-                <div className="ml-auto flex gap-2">
-                  <div className="w-3 h-3 rounded-full bg-error/60"></div>
-                  <div className="w-3 h-3 rounded-full bg-warning/60"></div>
-                  <div className="w-3 h-3 rounded-full bg-success/60"></div>
-                </div>
-              </div>
-              <div className="text-left space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-text-muted-light dark:text-text-muted-dark">$</span>
-                  <span className="text-success font-medium">envshield login</span>
-                </div>
-                <div className="text-text-secondary-light dark:text-text-secondary-dark pl-4">✓ Logged in successfully</div>
-                <div className="flex items-center gap-2 mt-4">
-                  <span className="text-text-muted-light dark:text-text-muted-dark">$</span>
-                  <span className="text-primary font-medium">envshield pull</span>
-                </div>
-                <div className="text-text-secondary-light dark:text-text-secondary-dark pl-4">✓ Pulled 23 variables to .env</div>
-                <div className="flex items-center gap-2 mt-4">
-                  <span className="text-text-muted-light dark:text-text-muted-dark">$</span>
-                  <span className="text-secondary font-medium">envshield push</span>
-                </div>
-                <div className="text-text-secondary-light dark:text-text-secondary-dark pl-4">✓ Pushed changes to production</div>
-              </div>
-            </Card>
-          </div>
-        </div>
-      </section>
+      {/* Integrations Marquee */}
+      <LogoMarquee />
 
       {/* Features Section */}
       <section className="py-24 px-4 relative">
@@ -203,6 +133,12 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* How It Works Section */}
+      <HowItWorks />
+
+      {/* Social Proof Section */}
+      <SocialProof />
 
       {/* CTA Section */}
       <section className="py-24 px-4">
@@ -246,28 +182,122 @@ export default function Home() {
       {/* Footer */}
       <footer className="py-16 px-4 border-t border-glass-light-border dark:border-glass-dark-border mt-12">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
+          {/* Top Section: Logo + Status */}
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 mb-12">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-primary/10">
                 <Shield className="w-6 h-6 text-primary" />
               </div>
               <span className="text-xl font-bold text-gradient-primary">EnvShield</span>
             </div>
-            <div className="flex items-center gap-6 text-sm">
-              <Link href="#" className="text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
-                Documentation
-              </Link>
-              <Link href="#" className="text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
-                API
-              </Link>
-              <Link href="#" className="text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
-                Support
-              </Link>
-              <Link href="#" className="text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
-                Privacy
-              </Link>
+            
+            {/* Status Pill */}
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-success/10 border border-success/30">
+              <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+              <span className="text-sm font-medium text-success">All systems operational</span>
             </div>
           </div>
+
+          {/* Links Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+            {/* Product */}
+            <div>
+              <h4 className="font-semibold text-text-primary-light dark:text-text-primary-dark mb-4">
+                Product
+              </h4>
+              <ul className="space-y-2">
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    Features
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    Pricing
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    Changelog
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Company */}
+            <div>
+              <h4 className="font-semibold text-text-primary-light dark:text-text-primary-dark mb-4">
+                Company
+              </h4>
+              <ul className="space-y-2">
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    About
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    Blog
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    Careers
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Resources */}
+            <div>
+              <h4 className="font-semibold text-text-primary-light dark:text-text-primary-dark mb-4">
+                Resources
+              </h4>
+              <ul className="space-y-2">
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    Documentation
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    API Reference
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    Support
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Legal */}
+            <div>
+              <h4 className="font-semibold text-text-primary-light dark:text-text-primary-dark mb-4">
+                Legal
+              </h4>
+              <ul className="space-y-2">
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    Privacy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    Terms
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="text-sm text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors">
+                    Security
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Bottom Section */}
           <div className="pt-8 border-t border-glass-light-border dark:border-glass-dark-border text-center">
             <p className="text-text-muted-light dark:text-text-muted-dark text-sm">
               © 2025 EnvShield. All rights reserved. Built with security and transparency.

@@ -10,6 +10,7 @@ import { initCommand } from './commands/init';
 import { pullCommand } from './commands/pull';
 import { pushCommand } from './commands/push';
 import { viewCommand } from './commands/view';
+import { runCommand } from './commands/run';
 import { registerProfileCommand } from './commands/profile';
 import { importCommand } from './commands/import';
 import { exportCommand } from './commands/export';
@@ -73,6 +74,19 @@ program
   .option('--env <project/environment>', 'Specify project and environment (e.g., my-app/production)')
   .option('--file <file>', 'Source file path (default: .env.local or .env)')
   .action(pushCommand);
+
+// Run command
+program
+  .command('run')
+  .description('Run command with environment variables injected (diskless)')
+  .option('--env <project/environment>', 'Specify project and environment (e.g., my-app/production)')
+  .option('--resolve', 'Resolve variable references (${VAR})')
+  .allowUnknownOption()
+  .action((options, cmd) => {
+    // Get the command arguments after '--'
+    const commandArgs = cmd.args;
+    runCommand(commandArgs, options);
+  });
 
 // View command
 program

@@ -16,6 +16,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.0",
     "@react-email/components": "^0.5.7",
     "@sentry/nextjs": "^10.22.0",
     "@upstash/ratelimit": "^2.0.6",
@@ -36,11 +37,12 @@
     "react-dom": "19.2.0",
     "resend": "^6.3.0",
     "speakeasy": "^2.0.0",
+    "tailwind-merge": "^3.4.0",
     "yaml": "^2.8.1",
-    "zod": "^4.1.12",
-    "@prisma/client": "^6.19.0"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@prisma/nextjs-monorepo-workaround-plugin": "^6.19.0",
     "@sentry/node": "^10.22.0",
     "@sentry/replay": "^7.116.0",
     "@sentry/tracing": "^7.120.4",

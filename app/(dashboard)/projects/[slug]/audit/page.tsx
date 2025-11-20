@@ -1,11 +1,13 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { Clock, Download } from "lucide-react";
+import { Clock, Download, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { LoadingSpinner } from "@/components/shared/loading-spinner";
+import { PageHeader } from "@/components/ui/page-header";
+import { useToast } from "@/components/ui/toast";
 
 interface AuditLog {
   id: string;
@@ -19,6 +21,7 @@ interface AuditLog {
 
 export default function AuditLogsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
+  const { addToast } = useToast();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,13 +35,18 @@ export default function AuditLogsPage({ params }: { params: Promise<{ slug: stri
         }
       } catch (error) {
         console.error("Failed to fetch audit logs:", error);
+        addToast({
+          type: "error",
+          title: "Failed to load audit logs",
+          message: "Please try again or check your connection.",
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchLogs();
-  }, [slug]);
+  }, [slug, addToast]);
 
   const handleExport = async () => {
     try {
@@ -50,33 +58,44 @@ export default function AuditLogsPage({ params }: { params: Promise<{ slug: stri
         a.href = url;
         a.download = `audit-logs-${Date.now()}.csv`;
         a.click();
+        addToast({
+          type: "success",
+          title: "Audit logs exported",
+          message: "Your audit logs have been downloaded.",
+        });
+      } else {
+        addToast({
+          type: "error",
+          title: "Failed to export logs",
+          message: "Please try again.",
+        });
       }
     } catch (error) {
       console.error("Failed to export logs:", error);
+      addToast({
+        type: "error",
+        title: "Failed to export logs",
+        message: "Please try again.",
+      });
     }
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold text-text-primary-light dark:text-text-primary-dark mb-2">
-            Audit Logs
-          </h1>
-          <p className="text-text-secondary-light dark:text-text-secondary-dark">
-            Track all changes and activities in your project
-          </p>
-        </div>
-        <Button
-          variant="secondary"
-          size="lg"
-          icon={<Download className="w-5 h-5" />}
-          onClick={handleExport}
-        >
-          Export
-        </Button>
-      </div>
+    <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
+      <PageHeader
+        title="Audit Logs"
+        description="Track all changes and activities in your project"
+        actions={
+          <Button
+            variant="secondary"
+            size="lg"
+            icon={<Download className="w-5 h-5" />}
+            onClick={handleExport}
+          >
+            Export
+          </Button>
+        }
+      />
 
       {/* Timeline */}
       {loading ? (
@@ -91,30 +110,42 @@ export default function AuditLogsPage({ params }: { params: Promise<{ slug: stri
           </p>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {logs.map((log) => (
-            <Card key={log.id} className="p-6 hover-lift">
+        <div className="space-y-3">
+          {logs.map((log, idx) => (
+            <Card
+              key={log.id}
+              className="p-6 hover-lift transition-all duration-200 border-l-4 border-l-primary/50"
+            >
               <div className="flex gap-4">
-                <Avatar initials={log.user.name.charAt(0)} size="md" />
-                <div className="flex-1">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="font-semibold text-text-primary-light dark:text-text-primary-dark">
+                <div className="flex-shrink-0">
+                  <Avatar initials={log.user.name.charAt(0)} size="md" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-text-primary-light dark:text-text-primary-dark truncate">
                         {log.user.name}
                       </h4>
                       <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                        {log.action} {log.entityType}
+                        <span className="font-mono">{log.action}</span>
+                        {" on "}
+                        <span className="font-mono">{log.entityType}</span>
                       </p>
                     </div>
-                    <span className="text-sm text-text-muted-light dark:text-text-muted-dark">
+                    <span className="text-sm text-text-muted-light dark:text-text-muted-dark flex-shrink-0 whitespace-nowrap">
                       {new Date(log.createdAt).toLocaleString()}
                     </span>
                   </div>
-                  {log.ipAddress && (
-                    <p className="text-xs text-text-muted-light dark:text-text-muted-dark mt-2">
-                      IP: {log.ipAddress}
+                  <div className="mt-3 pt-3 border-t border-glass-light-border dark:border-glass-dark-border space-y-1">
+                    <p className="text-xs text-text-muted-light dark:text-text-muted-dark">
+                      <span className="font-medium">Email:</span> {log.user.email}
                     </p>
-                  )}
+                    {log.ipAddress && (
+                      <p className="text-xs text-text-muted-light dark:text-text-muted-dark">
+                        <span className="font-medium">IP:</span> {log.ipAddress}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </Card>

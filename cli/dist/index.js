@@ -12,6 +12,7 @@ const init_1 = require("./commands/init");
 const pull_1 = require("./commands/pull");
 const push_1 = require("./commands/push");
 const view_1 = require("./commands/view");
+const run_1 = require("./commands/run");
 const profile_1 = require("./commands/profile");
 const import_1 = require("./commands/import");
 const export_1 = require("./commands/export");
@@ -62,6 +63,18 @@ program
     .option('--env <project/environment>', 'Specify project and environment (e.g., my-app/production)')
     .option('--file <file>', 'Source file path (default: .env.local or .env)')
     .action(push_1.pushCommand);
+// Run command
+program
+    .command('run')
+    .description('Run command with environment variables injected (diskless)')
+    .option('--env <project/environment>', 'Specify project and environment (e.g., my-app/production)')
+    .option('--resolve', 'Resolve variable references (${VAR})')
+    .allowUnknownOption()
+    .action((options, cmd) => {
+    // Get the command arguments after '--'
+    const commandArgs = cmd.args;
+    (0, run_1.runCommand)(commandArgs, options);
+});
 // View command
 program
     .command('view')

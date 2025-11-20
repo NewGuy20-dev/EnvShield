@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/shared/loading-spinner";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useToast } from "@/components/ui/toast";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -15,6 +16,7 @@ export default function DashboardPage() {
     activity: 0,
   });
   const [loading, setLoading] = useState(true);
+  const { addToast } = useToast();
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -30,6 +32,11 @@ export default function DashboardPage() {
         }
       } catch (error) {
         console.error("Failed to fetch stats:", error);
+        addToast({
+          type: "error",
+          title: "Failed to load dashboard stats",
+          message: "Please refresh the page or try again.",
+        });
       } finally {
         setLoading(false);
       }

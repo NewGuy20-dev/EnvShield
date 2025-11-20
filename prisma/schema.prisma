@@ -24,34 +24,56 @@ model User {
   twoFactorRecoveryCode  String?   @map("two_factor_recovery_code")
   twoFactorUpdatedAt     DateTime? @map("two_factor_updated_at")
 
-  projects      ProjectMember[]
-  invitedProjects ProjectInvite[]  // Invites sent by this user
-  apiTokens     ApiToken[]
-  auditLogs     AuditLog[]
-  securityAlerts SecurityAlert[]
-  accounts      Account[]       // OAuth accounts
-  sessions      Session[]       // Better Auth sessions
+  projects          ProjectMember[]
+  invitedProjects   ProjectInvite[]  // Invites sent by this user
+  apiTokens         ApiToken[]
+  auditLogs         AuditLog[]
+  securityAlerts    SecurityAlert[]
+  accounts          Account[]       // OAuth accounts
+  sessions          Session[]       // Better Auth sessions
   cliDeviceSessions CliDeviceSession[]
+  serviceAccounts   ServiceAccount[] // Service accounts created by this user
 
   @@map("users")
 }
 
 model ApiToken {
-  id          String   @id @default(cuid())
-  userId      String
-  tokenDigest String   @unique @map("token_digest") // SHA-256 digest for fast lookup
-  tokenHash   String?  @map("token_hash") // Bcrypt hash for verification (legacy compatibility)
-  name        String?
-  lastUsedAt  DateTime?
-  expiresAt   DateTime?
-  createdAt   DateTime @default(now())
+  id               String   @id @default(cuid())
+  userId           String?  // Made nullable to support service accounts
+  serviceAccountId String?  @map("service_account_id") // For service account tokens
+  tokenDigest      String   @unique @map("token_digest") // SHA-256 digest for fast lookup
+  tokenHash        String?  @map("token_hash") // Bcrypt hash for verification (legacy compatibility)
+  name             String?
+  lastUsedAt       DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceAccount    ServiceAccount?  @relation(fields: [serviceAccountId], references: [id], onDelete: Cascade)
   cliDeviceSessions CliDeviceSession[]
 
   @@map("api_tokens")
   @@index([userId])
+  @@index([serviceAccountId])
   @@index([tokenDigest])
+}
+
+model ServiceAccount {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  projectId   String
+  createdBy   String   // User who created the service account
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator User       @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  tokens  ApiToken[]
+
+  @@map("service_accounts")
+  @@index([projectId])
+  @@index([createdBy])
 }
 
 model Project {
@@ -62,10 +84,11 @@ model Project {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  members      ProjectMember[]
-  invites      ProjectInvite[]
-  environments Environment[]
-  auditLogs    AuditLog[]
+  members         ProjectMember[]
+  invites         ProjectInvite[]
+  environments    Environment[]
+  auditLogs       AuditLog[]
+  serviceAccounts ServiceAccount[]
 
   @@map("projects")
 }

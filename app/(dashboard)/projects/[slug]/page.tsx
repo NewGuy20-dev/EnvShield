@@ -7,8 +7,11 @@ import { FileText, Plus, Users, Trash2, Edit, AlertTriangle } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Modal, ModalFooter } from "@/components/ui/modal";
-import { LoadingSpinner } from "@/components/shared/loading-spinner";
+import { LoadingSpinner } from "@/components/ui/loading";
+import { PageHeader } from "@/components/ui/page-header";
+import { useToast } from "@/components/ui/toast";
 
 interface ProjectDetails {
   id: string;
@@ -19,11 +22,13 @@ interface ProjectDetails {
   variablesCount: number;
   createdAt: string;
   role?: string;
+  slug: string;
 }
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const router = useRouter();
+  const { addToast } = useToast();
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -46,13 +51,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
         }
       } catch (error) {
         console.error("Failed to fetch project:", error);
+        addToast({
+          type: "error",
+          title: "Failed to load project",
+          message: "Please try again or check your connection.",
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchProject();
-  }, [slug]);
+  }, [slug, addToast]);
 
   const handleEdit = async () => {
     try {
@@ -67,18 +77,31 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
         const data = await response.json();
         setProject((prev) => prev ? { ...prev, ...data.project } : null);
         setShowEditModal(false);
-        
+        addToast({
+          type: "success",
+          title: "Project updated",
+          message: "Your project has been successfully updated.",
+        });
+
         // If slug changed, redirect to new URL
         if (data.project.slug !== slug) {
           router.push(`/projects/${data.project.slug}`);
         }
       } else {
         const error = await response.json();
-        alert(error.message || "Failed to update project");
+        addToast({
+          type: "error",
+          title: "Failed to update project",
+          message: error.message || "Please try again.",
+        });
       }
     } catch (error) {
       console.error("Failed to update project:", error);
-      alert("Failed to update project");
+      addToast({
+        type: "error",
+        title: "Failed to update project",
+        message: "Please try again.",
+      });
     } finally {
       setEditLoading(false);
     }
@@ -92,15 +115,28 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
       });
 
       if (response.ok) {
+        addToast({
+          type: "success",
+          title: "Project deleted",
+          message: "Your project has been successfully deleted.",
+        });
         router.push("/projects");
       } else {
         const error = await response.json();
-        alert(error.message || "Failed to delete project");
+        addToast({
+          type: "error",
+          title: "Failed to delete project",
+          message: error.message || "Please try again.",
+        });
         setDeleteLoading(false);
       }
     } catch (error) {
       console.error("Failed to delete project:", error);
-      alert("Failed to delete project");
+      addToast({
+        type: "error",
+        title: "Failed to delete project",
+        message: "Please try again.",
+      });
       setDeleteLoading(false);
     }
   };
@@ -111,7 +147,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <LoadingSpinner />
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -129,20 +165,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h1 className="text-4xl font-bold text-text-primary-light dark:text-text-primary-dark mb-2">
-              {project.name}
-            </h1>
-            {project.description && (
-              <p className="text-text-secondary-light dark:text-text-secondary-dark">
-                {project.description}
-              </p>
-            )}
-          </div>
+      <PageHeader
+        title={project.name}
+        description={project.description}
+        actions={
           <div className="flex gap-2">
             {canEdit && (
               <Button
@@ -165,11 +193,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
               </Button>
             )}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 animate-slide-in animation-delay-100">
         <Card className="p-6 hover-lift">
           <div className="flex items-center justify-between">
             <div>
@@ -208,9 +236,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-6 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-slide-in animation-delay-200">
+        <Card className="p-6 relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <div className="relative">
             <h3 className="text-xl font-semibold text-text-primary-light dark:text-text-primary-dark mb-3">
               Environments
@@ -226,8 +254,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
           </div>
         </Card>
 
-        <Card className="p-6 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 to-transparent" />
+        <Card className="p-6 relative overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <div className="relative">
             <h3 className="text-xl font-semibold text-text-primary-light dark:text-text-primary-dark mb-3">
               Team
@@ -258,18 +286,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ slug: 
             value={editForm.name}
             onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
           />
-          <div>
-            <label className="block text-sm font-medium text-text-primary-light dark:text-text-primary-dark mb-2">
-              Description (optional)
-            </label>
-            <textarea
-              value={editForm.description}
-              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-              placeholder="Enter project description..."
-              className="w-full px-4 py-2 rounded-lg glass-input bg-glass-light-input dark:bg-glass-dark-input border border-glass-light-border dark:border-glass-dark-border focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-              rows={4}
-            />
-          </div>
+          <Textarea
+            label="Description (optional)"
+            value={editForm.description}
+            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+            placeholder="Enter project description..."
+            rows={4}
+          />
           <ModalFooter>
             <Button
               variant="secondary"

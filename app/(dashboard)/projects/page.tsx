@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LoadingSpinner } from "@/components/shared/loading-spinner";
-import { EmptyState } from "@/components/shared/empty-state";
+import { LoadingCard } from "@/components/ui/loading";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { useToast } from "@/components/ui/toast";
 import { CreateProjectModal } from "@/components/dashboard/create-project-modal";
 
 interface Project {
@@ -26,6 +28,7 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const { addToast } = useToast();
 
   useEffect(() => {
     fetchProjects();
@@ -41,6 +44,11 @@ export default function ProjectsPage() {
       }
     } catch (error) {
       console.error("Failed to fetch projects:", error);
+      addToast({
+        type: "error",
+        title: "Failed to load projects",
+        message: "Please try again or check your connection.",
+      });
     } finally {
       setLoading(false);
     }
@@ -52,29 +60,25 @@ export default function ProjectsPage() {
   );
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
       {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-bold text-text-primary-light dark:text-text-primary-dark mb-2">
-            Projects
-          </h1>
-          <p className="text-text-secondary-light dark:text-text-secondary-dark">
-            Manage your projects and their environments
-          </p>
-        </div>
-        <Button
-          variant="primary"
-          size="lg"
-          icon={<Plus className="w-5 h-5" />}
-          onClick={() => setShowCreateModal(true)}
-        >
-          New Project
-        </Button>
-      </div>
+      <PageHeader
+        title="Projects"
+        description="Manage your projects and their environments"
+        actions={
+          <Button
+            variant="primary"
+            size="lg"
+            icon={<Plus className="w-5 h-5" />}
+            onClick={() => setShowCreateModal(true)}
+          >
+            New Project
+          </Button>
+        }
+      />
 
       {/* Search */}
-      <div className="mb-8">
+      <div className="mb-8 max-w-xl animate-slide-in animation-delay-100">
         <Input
           type="search"
           placeholder="Search projects..."
@@ -86,22 +90,29 @@ export default function ProjectsPage() {
 
       {/* Projects Grid */}
       {loading ? (
-        <div className="flex justify-center py-12">
-          <LoadingSpinner />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <LoadingCard />
+          <LoadingCard />
+          <LoadingCard />
         </div>
       ) : filteredProjects.length === 0 ? (
         <EmptyState
-          icon={<FolderOpen className="w-12 h-12" />}
+          icon={<FolderOpen className="w-16 h-16" />}
           title={search ? "No projects found" : "No projects yet"}
           description={
             search
               ? "Try adjusting your search terms"
               : "Create your first project to get started"
           }
-          action={{
-            label: "Create Project",
-            onClick: () => setShowCreateModal(true),
-          }}
+          action={
+            <Button
+              variant="primary"
+              icon={<Plus className="w-5 h-5" />}
+              onClick={() => setShowCreateModal(true)}
+            >
+              Create Project
+            </Button>
+          }
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

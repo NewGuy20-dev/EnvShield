@@ -2,11 +2,15 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, Filter, Download, Lock, Calendar, User } from "lucide-react";
+import { Search, Filter, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { LoadingSpinner } from "@/components/shared/loading-spinner";
+import { LoadingSpinner } from "@/components/ui/loading";
+import { PageHeader } from "@/components/ui/page-header";
+import { Select } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 
 interface SearchResult {
@@ -86,46 +90,49 @@ function SearchPageContent() {
     setPagination({ ...pagination, page: 1 });
   };
 
+  const projectOptions = [
+    { value: "", label: "All Projects" },
+    ...(facets?.projects.map((p) => ({
+      value: p.id,
+      label: `${p.name} (${p.count})`,
+    })) || []),
+  ];
+
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-text-primary-light dark:text-text-primary-dark mb-2">
-          Search Variables
-        </h1>
-        <p className="text-text-secondary-light dark:text-text-secondary-dark">
-          Find environment variables across all your projects
-        </p>
-      </div>
+      <PageHeader
+        title="Search Variables"
+        description="Find environment variables across all your projects"
+      />
 
       {/* Search Bar */}
-      <div className="mb-8">
+      <div className="mb-8 animate-slide-up">
         <div className="flex gap-3">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted-light dark:text-text-muted-dark" />
             <Input
               type="search"
               placeholder="Search by key or description..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="pl-10"
+              icon={<Search className="w-4 h-4" />}
             />
           </div>
           <Button
             variant="primary"
             onClick={performSearch}
             disabled={loading || !query}
-            icon={loading ? <LoadingSpinner /> : <Search className="w-4 h-4" />}
+            icon={loading ? <LoadingSpinner size="sm" /> : <Search className="w-4 h-4" />}
           >
             Search
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-12 gap-6 animate-slide-up animation-delay-100">
         {/* Filters Sidebar */}
         <div className="col-span-12 md:col-span-3">
-          <Card className="p-4">
+          <Card className="p-4 sticky top-24">
             <div className="flex items-center gap-2 mb-4 font-semibold text-text-primary-light dark:text-text-primary-dark">
               <Filter className="w-4 h-4" />
               <span>Filters</span>
@@ -134,36 +141,23 @@ function SearchPageContent() {
             {/* Project Filter */}
             {facets && facets.projects.length > 0 && (
               <div className="mb-6">
-                <label className="block text-sm font-medium mb-2">Project</label>
-                <select
+                <Select
+                  label="Project"
                   value={filters.projectId}
                   onChange={(e) => handleFilterChange("projectId", e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg glass-input bg-glass-light-input dark:bg-glass-dark-input border border-glass-light-border dark:border-glass-dark-border"
-                >
-                  <option value="">All Projects</option>
-                  {facets.projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name} ({project.count})
-                    </option>
-                  ))}
-                </select>
+                  options={projectOptions}
+                />
               </div>
             )}
 
             {/* Decrypt Option */}
             <div className="mb-6">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filters.decrypt}
-                  onChange={(e) => handleFilterChange("decrypt", e.target.checked)}
-                  className="rounded"
-                />
-                <span className="text-sm">Show full values</span>
-              </label>
-              <p className="text-xs text-text-muted-light dark:text-text-muted-dark mt-1">
-                Requires DEVELOPER+ permissions
-              </p>
+              <Checkbox
+                label="Show full values"
+                description="Requires DEVELOPER+ permissions"
+                checked={filters.decrypt}
+                onChange={(e) => handleFilterChange("decrypt", e.target.checked)}
+              />
             </div>
 
             {/* Clear Filters */}
@@ -187,24 +181,20 @@ function SearchPageContent() {
         <div className="col-span-12 md:col-span-9">
           {loading ? (
             <div className="flex justify-center py-12">
-              <LoadingSpinner />
+              <LoadingSpinner size="lg" />
             </div>
           ) : results.length === 0 && query ? (
-            <Card className="p-12 text-center">
-              <Search className="w-12 h-12 mx-auto mb-4 text-text-muted-light dark:text-text-muted-dark" />
-              <h3 className="text-xl font-semibold mb-2">No results found</h3>
-              <p className="text-text-secondary-light dark:text-text-secondary-dark">
-                Try adjusting your search terms or filters
-              </p>
-            </Card>
+            <EmptyState
+              icon={<Search className="w-12 h-12" />}
+              title="No results found"
+              description="Try adjusting your search terms or filters"
+            />
           ) : !query ? (
-            <Card className="p-12 text-center">
-              <Search className="w-12 h-12 mx-auto mb-4 text-text-muted-light dark:text-text-muted-dark" />
-              <h3 className="text-xl font-semibold mb-2">Start searching</h3>
-              <p className="text-text-secondary-light dark:text-text-secondary-dark">
-                Enter a search term to find variables
-              </p>
-            </Card>
+            <EmptyState
+              icon={<Search className="w-12 h-12" />}
+              title="Start searching"
+              description="Enter a search term to find variables"
+            />
           ) : (
             <>
               {/* Results Header */}
@@ -217,7 +207,7 @@ function SearchPageContent() {
               {/* Results List */}
               <div className="space-y-4">
                 {results.map((result) => (
-                  <Card key={result.id} className="p-4 hover:shadow-lg transition-shadow">
+                  <Card key={result.id} className="p-4 hover-lift group">
                     <Link
                       href={`/projects/${result.project.slug}/environments/${result.environment.slug}`}
                       className="block"
@@ -226,7 +216,7 @@ function SearchPageContent() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
                             <Lock className="w-4 h-4 text-text-muted-light dark:text-text-muted-dark flex-shrink-0" />
-                            <code className="font-mono font-semibold text-lg text-text-primary-light dark:text-text-primary-dark">
+                            <code className="font-mono font-semibold text-lg text-text-primary-light dark:text-text-primary-dark group-hover:text-primary transition-colors">
                               {result.key}
                             </code>
                           </div>
@@ -244,7 +234,7 @@ function SearchPageContent() {
                           </div>
                         </div>
                         <div className="flex-shrink-0">
-                          <code className="font-mono text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                          <code className="font-mono text-sm text-text-secondary-light dark:text-text-secondary-dark bg-glass-light-input dark:bg-glass-dark-input px-2 py-1 rounded">
                             {result.value}
                           </code>
                         </div>
@@ -291,7 +281,7 @@ export default function SearchPage() {
     <Suspense
       fallback={
         <div className="flex justify-center items-center min-h-screen">
-          <LoadingSpinner />
+          <LoadingSpinner size="lg" />
         </div>
       }
     >

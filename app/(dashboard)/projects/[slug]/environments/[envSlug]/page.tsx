@@ -1,7 +1,8 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { Plus, Search, Download, Upload, Copy, Eye, EyeOff, Trash2, Lock, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Plus, Search, Download, Upload, Eye, EyeOff, Trash2, Lock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -9,6 +10,8 @@ import { Modal, ModalFooter } from "@/components/ui/modal";
 import { LoadingSpinner } from "@/components/shared/loading-spinner";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ImportExportDrawer } from "@/components/variables/ImportExportDrawer";
+import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { CopyButton } from "@/components/ui/copy-button";
 
 interface Variable {
   id: string;
@@ -25,6 +28,7 @@ interface EnvironmentInfo {
   name: string;
   slug: string;
   description?: string;
+  variablesCount?: number;
 }
 
 interface ProjectInfo {
@@ -42,6 +46,7 @@ export default function VariablesPage({
   const [variables, setVariables] = useState<Variable[]>([]);
   const [environment, setEnvironment] = useState<EnvironmentInfo | null>(null);
   const [project, setProject] = useState<ProjectInfo | null>(null);
+  const [environments, setEnvironments] = useState<EnvironmentInfo[]>([]);
   const [canViewDecrypted, setCanViewDecrypted] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -59,15 +64,22 @@ export default function VariablesPage({
   const fetchVariables = async () => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `/api/v1/projects/${slug}/environments/${envSlug}/variables`
-      );
-      if (response.ok) {
-        const data = await response.json();
+      const [variablesResponse, environmentsResponse] = await Promise.all([
+        fetch(`/api/v1/projects/${slug}/environments/${envSlug}/variables`),
+        fetch(`/api/v1/projects/${slug}/environments`),
+      ]);
+
+      if (variablesResponse.ok) {
+        const data = await variablesResponse.json();
         setVariables(data.variables || []);
         setEnvironment(data.environment);
         setProject(data.project);
         setCanViewDecrypted(data.canViewDecrypted || false);
+      }
+
+      if (environmentsResponse.ok) {
+        const envData = await environmentsResponse.json();
+        setEnvironments(envData.environments || []);
       }
     } catch (error) {
       console.error("Failed to fetch variables:", error);
@@ -165,77 +177,130 @@ export default function VariablesPage({
         </div>
       </div>
 
-      {/* Search */}
-      <div className="mb-8">
-        <Input
-          type="search"
-          placeholder="Search variables..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          icon={<Search className="w-4 h-4" />}
-        />
-      </div>
+      <div className="grid gap-6 lg:grid-cols-[280px,minmax(0,1fr)]">
+        {/* Environment List (left) */}
+        <Card className="p-4 h-fit animate-fade-in">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark uppercase tracking-wide">
+                Environments
+              </h2>
+              <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                Switch between environments
+              </p>
+            </div>
+            {environments.length > 0 && (
+              <span className="text-xs text-text-muted-light dark:text-text-muted-dark">
+                {environments.length} total
+              </span>
+            )}
+          </div>
 
-      {/* Variables Table */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <LoadingSpinner />
-        </div>
-      ) : filteredVariables.length === 0 ? (
-        <EmptyState
-          icon={<Lock className="w-12 h-12" />}
-          title={search ? "No variables found" : "No variables yet"}
-          description={
-            search
-              ? "Try adjusting your search terms"
-              : "Add your first environment variable"
-          }
-          action={{
-            label: "Add Variable",
-            onClick: () => setShowAddModal(true),
-          }}
-        />
-      ) : (
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-glass-light-border dark:border-glass-dark-border">
+          {loading ? (
+            <div className="py-4 text-sm text-text-secondary-light dark:text-text-secondary-dark">
+              Loading environments...
+            </div>
+          ) : environments.length === 0 ? (
+            <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+              No environments yet.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {environments.map((env) => {
+                const isActive = env.slug === envSlug;
+                return (
+                  <li key={env.id}>
+                    <Link
+                      href={`/projects/${slug}/environments/${env.slug}`}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all border ${
+                        isActive
+                          ? "bg-primary/10 text-text-primary-light dark:text-text-primary-dark border-primary/40"
+                          : "text-text-secondary-light dark:text-text-secondary-dark border-transparent hover:bg-glass-light dark:hover:bg-glass-dark hover:border-primary/20"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Lock
+                          className={`w-3 h-3 ${
+                            isActive
+                              ? "text-primary"
+                              : "text-text-muted-light dark:text-text-muted-dark"
+                          }`}
+                        />
+                        <span className="font-medium">{env.name}</span>
+                      </div>
+                      {typeof env.variablesCount === "number" && (
+                        <span className="text-xs text-text-muted-light dark:text-text-muted-dark">
+                          {env.variablesCount}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+
+        {/* Variables (right) */}
+        <div className="space-y-6">
+          {/* Search */}
+          <div>
+            <Input
+              type="search"
+              placeholder="Search variables..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              icon={<Search className="w-4 h-4" />}
+            />
+          </div>
+
+          {/* Variables Table */}
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner />
+            </div>
+          ) : filteredVariables.length === 0 ? (
+            <EmptyState
+              icon={<Lock className="w-12 h-12" />}
+              title={search ? "No variables found" : "No variables yet"}
+              description={
+                search
+                  ? "Try adjusting your search terms"
+                  : "Add your first environment variable"
+              }
+              action={{
+                label: "Add Variable",
+                onClick: () => setShowAddModal(true),
+              }}
+            />
+          ) : (
+            <Table aria-label="Environment variables table">
+              <TableHeader>
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
-                    Key
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
-                    Value
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
-                    Updated
-                  </th>
-                  <th className="px-6 py-4 text-right text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
-                    Actions
-                  </th>
+                  <TableHead>Key</TableHead>
+                  <TableHead>Value</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-glass-light-border dark:divide-glass-dark-border">
+              </TableHeader>
+              <TableBody>
                 {filteredVariables.map((variable) => {
                   const isRevealed = revealedIds.has(variable.id);
                   return (
-                    <tr
-                      key={variable.id}
-                      className="hover:bg-glass-light dark:hover:bg-glass-dark transition-colors"
-                    >
-                      <td className="px-6 py-4">
+                    <TableRow key={variable.id}>
+                      <TableCell>
                         <div className="flex items-center gap-2">
                           <Lock className="w-4 h-4 text-text-muted-light dark:text-text-muted-dark" />
                           <code className="font-mono font-medium text-text-primary-light dark:text-text-primary-dark">
                             {variable.key}
                           </code>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
                           <code className="font-mono text-sm text-text-secondary-light dark:text-text-secondary-dark">
                             {variable.error ? (
-                              <span className="text-danger">Decryption failed</span>
+                              <span className="text-error">Decryption failed</span>
                             ) : variable.masked && !canViewDecrypted ? (
                               variable.value
                             ) : isRevealed ? (
@@ -250,41 +315,57 @@ export default function VariablesPage({
                             </span>
                           )}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 text-text-secondary-light dark:text-text-secondary-dark text-sm">
+                      </TableCell>
+                      <TableCell className="text-text-secondary-light dark:text-text-secondary-dark text-sm whitespace-nowrap">
                         {new Date(variable.updatedAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-2 flex items-center justify-end">
-                        {canViewDecrypted && !variable.error && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              icon={isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              onClick={() => toggleReveal(variable.id)}
-                            >{null}</Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              icon={<Copy className="w-4 h-4" />}
-                              onClick={() => navigator.clipboard.writeText(variable.value)}
-                            >{null}</Button>
-                          </>
-                        )}
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          icon={<Trash2 className="w-4 h-4" />}
-                        >{null}</Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {canViewDecrypted && !variable.error && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon={
+                                  isRevealed ? (
+                                    <EyeOff className="w-4 h-4" />
+                                  ) : (
+                                    <Eye className="w-4 h-4" />
+                                  )
+                                }
+                                onClick={() => toggleReveal(variable.id)}
+                                aria-label={isRevealed ? "Hide value" : "Reveal value"}
+                                title={isRevealed ? "Hide value" : "Reveal value"}
+                              >
+                                {null}
+                              </Button>
+                              <CopyButton
+                                text={variable.value}
+                                variant="icon"
+                                size="sm"
+                                className="ml-1"
+                              />
+                            </>
+                          )}
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            icon={<Trash2 className="w-4 h-4" />}
+                            aria-label="Delete variable"
+                            title="Delete variable"
+                          >
+                            {null}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </div>
 
       {/* Add Variable Modal */}
       <Modal
