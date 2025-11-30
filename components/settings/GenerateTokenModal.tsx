@@ -75,7 +75,7 @@ export function GenerateTokenModal({
     };
 
     return (
-        <Modal onClose={handleClose}>
+        <Modal isOpen={true} onClose={handleClose}>
             <div className="bg-glass-light dark:bg-glass-dark backdrop-blur-xl rounded-2xl p-6 w-full max-w-2xl border border-glass-light-border dark:border-glass-dark-border">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
@@ -172,7 +172,7 @@ export function GenerateTokenModal({
                                     {generatedToken}
                                 </div>
                                 <Button
-                                    variant={copied ? "success" : "secondary"}
+                                    variant={copied ? "primary" : "secondary"}
                                     size="lg"
                                     icon={copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
                                     onClick={handleCopy}
